@@ -2,12 +2,11 @@ source("R/step02_harmonize_depths.R")
 
 soil_data <- read.csv("data/soil_cores_raw.csv")
 
-# soilassessment::depthharm()'s expected column names may not exactly match
-# soil_cores_raw.csv's (plot_id, depth_from, depth_to, soc, bulk_density,
-# coarse_frag) -- check `?soilassessment::depthharm` for the installed
-# package version and adjust R/step02_harmonize_depths.R (or this script's
-# input columns) before trusting the output. Verify against a hand
-# calculation on one core first, per the workshop.
+# harmonize_core_depths() promotes soil_data to an aqp::SoilProfileCollection
+# before calling depthharm() -- see R/step02_harmonize_depths.R for why.
+# Still worth checking the harmonized output against a hand calculation on
+# one core before trusting it (the workshop's Step 2 worked example: core 1,
+# 0-15 cm target -> 35 Mg C/ha from the raw 0-10 and 10-25 layers).
 harmonized <- harmonize_core_depths(soil_data)
 
 dir.create("outputs", showWarnings = FALSE)
