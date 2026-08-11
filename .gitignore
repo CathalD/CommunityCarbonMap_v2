@@ -1,0 +1,21 @@
+# R
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# targets cache -- regenerate with tar_make(), don't version it
+_targets/
+_targets.yaml
+
+# generated data and outputs -- regenerate with scripts/, don't version them
+data/*
+outputs/*
+!data/.gitkeep
+!data/README.md
+!outputs/.gitkeep
+
+# renv, if/when it gets added
+renv/library/
+renv/staging/

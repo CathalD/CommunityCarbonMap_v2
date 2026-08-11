@@ -1,0 +1,1622 @@
+<title>Regional Map Updating Framework — Workshop</title>
+<style>
+  /* ============ TOKENS ============ */
+  :root{
+    --paper:#EDF0E7;
+    --surface:#F8F9F4;
+    --surface-2:#FFFFFF;
+    --ink:#1B2119;
+    --ink-muted:#4E574A;
+    --ink-faint:#7B8574;
+    --rule:#D4D9C8;
+    --rule-strong:#B9C1AA;
+    --moss:#2F5233;
+    --moss-strong:#20391F;
+    --moss-tint:#DCE6D9;
+    --ochre:#93691A;
+    --ochre-tint:#F1E4C6;
+    --clay:#93392A;
+    --clay-tint:#F0DCD5;
+    --code-bg:#1A1F17;
+    --code-ink:#E4E9DC;
+    --code-muted:#8C9581;
+    --code-accent:#D8B466;
+    --shadow: 0 1px 2px rgba(27,33,25,0.06), 0 6px 20px rgba(27,33,25,0.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#151912;
+      --surface:#1B2117;
+      --surface-2:#20271B;
+      --ink:#E8ECE1;
+      --ink-muted:#AAB49C;
+      --ink-faint:#7B8574;
+      --rule:#333C2B;
+      --rule-strong:#465239;
+      --moss:#8FC195;
+      --moss-strong:#B3D9B7;
+      --moss-tint:#25321F;
+      --ochre:#E2B95D;
+      --ochre-tint:#332A15;
+      --clay:#E2937E;
+      --clay-tint:#332019;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#151912;
+    --surface:#1B2117;
+    --surface-2:#20271B;
+    --ink:#E8ECE1;
+    --ink-muted:#AAB49C;
+    --ink-faint:#7B8574;
+    --rule:#333C2B;
+    --rule-strong:#465239;
+    --moss:#8FC195;
+    --moss-strong:#B3D9B7;
+    --moss-tint:#25321F;
+    --ochre:#E2B95D;
+    --ochre-tint:#332A15;
+    --clay:#E2937E;
+    --clay-tint:#332019;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.35);
+  }
+
+  /* ============ BASE ============ */
+  *,*::before,*::after{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:Charter, "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
+    font-size:17px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{
+    font-family:-apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  .mono, code, pre, .formula, .num{
+    font-family:ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  }
+  a{color:var(--moss);}
+  h1,h2,h3,h4{text-wrap:balance; font-family:-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif; color:var(--ink); margin:0;}
+  p{margin:0 0 1em 0; max-width:66ch;}
+  ::selection{background:var(--moss-tint);}
+  :focus-visible{outline:2px solid var(--ochre); outline-offset:2px;}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important;}}
+
+  .skip-link{position:absolute; left:-999px; top:0; background:var(--moss); color:var(--surface); padding:.6em 1em; z-index:100;}
+  .skip-link:focus{left:1em; top:1em;}
+
+  /* ============ SHELL ============ */
+  .shell{
+    display:grid;
+    grid-template-columns: 260px minmax(0,760px);
+    justify-content:center;
+    gap:56px;
+    max-width:1180px;
+    margin:0 auto;
+    padding:0 24px 120px;
+  }
+  @media (max-width: 960px){
+    .shell{grid-template-columns:1fr; gap:0; padding:0 18px 80px;}
+    .sidenav{display:none;}
+  }
+
+  /* ============ HERO ============ */
+  .hero{
+    grid-column:1/-1;
+    max-width:900px;
+    margin:0 auto;
+    padding:64px 24px 40px;
+    text-align:left;
+    border-bottom:1px solid var(--rule);
+  }
+  .hero-eyebrow{
+    display:inline-flex; align-items:center; gap:.5em;
+    font-size:12.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--moss); font-weight:600; margin-bottom:18px;
+  }
+  .hero-eyebrow::before{content:""; width:22px; height:1px; background:var(--moss);}
+  .hero h1{font-size:clamp(30px,4.2vw,44px); font-weight:700; line-height:1.12; letter-spacing:-.01em; max-width:16ch;}
+  .hero .sub{
+    font-family:Charter, Georgia, serif; font-size:19px; color:var(--ink-muted);
+    max-width:58ch; margin-top:18px;
+  }
+  .hero-meta{display:flex; flex-wrap:wrap; gap:10px 28px; margin-top:28px; font-size:13.5px; color:var(--ink-faint);}
+  .hero-meta b{color:var(--ink-muted); font-weight:600;}
+
+  .philosophy{
+    grid-column:1/-1; max-width:900px; margin:36px auto 0; padding:0 24px 44px;
+    display:grid; grid-template-columns:1fr 1fr; gap:28px;
+  }
+  @media (max-width:640px){.philosophy{grid-template-columns:1fr;}}
+  .philosophy .tenet{
+    background:var(--surface); border:1px solid var(--rule); border-radius:3px;
+    padding:20px 22px; box-shadow:var(--shadow);
+  }
+  .philosophy .tenet .n{font-family:ui-monospace,monospace; color:var(--ochre); font-size:12px; letter-spacing:.08em;}
+  .philosophy .tenet h3{font-size:16.5px; margin:6px 0 8px;}
+  .philosophy .tenet p{font-size:15px; color:var(--ink-muted); margin:0;}
+
+  /* ============ SIDE NAV ============ */
+  .sidenav{
+    position:sticky; top:28px; align-self:start;
+    max-height:calc(100vh - 56px); overflow-y:auto;
+    padding-right:6px;
+  }
+  .sidenav h4{font-size:11.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:10px;}
+  .sidenav ol{list-style:none; margin:0 0 22px; padding:0; border-left:1px solid var(--rule);}
+  .sidenav ol li{position:relative;}
+  .sidenav a{
+    display:flex; gap:10px; align-items:baseline;
+    padding:6px 0 6px 14px; font-size:13.6px; color:var(--ink-muted); text-decoration:none;
+    border-left:2px solid transparent; margin-left:-1px;
+  }
+  .sidenav a .idx{font-family:ui-monospace,monospace; color:var(--ink-faint); font-size:12px; min-width:1.4em;}
+  .sidenav a:hover{color:var(--ink);}
+  .sidenav a.active{color:var(--moss-strong); border-left-color:var(--moss); font-weight:600;}
+  .sidenav a.active .idx{color:var(--moss);}
+  .sidenav .grp{padding:10px 0 4px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-faint);}
+
+  /* ============ MAIN CONTENT ============ */
+  main{min-width:0;}
+  section.step{
+    padding:56px 0; border-bottom:1px solid var(--rule);
+    scroll-margin-top:24px;
+  }
+  section.step:last-of-type{border-bottom:none;}
+  .step-head{display:flex; align-items:baseline; gap:16px; margin-bottom:6px;}
+  .step-num{
+    font-family:ui-monospace,monospace; font-size:14px; color:var(--ochre);
+    background:var(--ochre-tint); border-radius:2px; padding:3px 8px; letter-spacing:.02em;
+  }
+  .step-head h2{font-size:26px; letter-spacing:-.01em;}
+  .step-question{
+    font-size:16px; color:var(--ink-muted); font-style:italic; margin:10px 0 24px;
+    font-family:Charter,Georgia,serif;
+  }
+  .step h3.sub-h{font-size:14.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-faint); margin:30px 0 12px;}
+
+  /* ============ CARDS: pen & paper ============ */
+  .penpaper{
+    margin:20px 0; border-radius:4px; border:1px solid var(--rule-strong);
+    background:
+      repeating-linear-gradient(var(--surface) 0 27px, var(--rule) 27px 28px);
+    background-color:var(--surface);
+    box-shadow:var(--shadow);
+    padding:18px 22px 22px;
+    position:relative;
+  }
+  .penpaper::before{
+    content:"pen & paper"; position:absolute; top:-10px; left:16px;
+    background:var(--moss); color:var(--surface-2); font-family:-apple-system,sans-serif;
+    font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+    padding:3px 9px; border-radius:2px;
+  }
+  .penpaper p, .penpaper li{font-size:15.5px;}
+  .penpaper .worked{
+    margin-top:10px; font-family:ui-monospace,monospace; font-size:14.5px;
+    background:var(--surface-2); border:1px solid var(--rule); border-radius:3px;
+    padding:12px 16px; white-space:pre-wrap; line-height:1.7; color:var(--ink);
+  }
+  .penpaper .worked .res{color:var(--moss-strong); font-weight:600;}
+  .penpaper ol{margin:8px 0 0 1.1em; padding:0;}
+  .penpaper ol li{margin-bottom:4px;}
+
+  /* ============ FORMULA CARD ============ */
+  .formula-card{
+    border-left:3px solid var(--ochre); background:var(--surface);
+    border-radius:0 4px 4px 0; padding:16px 20px; margin:16px 0;
+  }
+  .formula-card .label{font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ochre); margin-bottom:8px; font-family:-apple-system,sans-serif; font-weight:700;}
+  .formula{font-size:16px; color:var(--ink); display:inline-flex; align-items:center; gap:.35em; flex-wrap:wrap;}
+  .formula .cap{display:block; margin-top:8px; font-size:13.5px; color:var(--ink-muted); font-family:Charter,Georgia,serif; font-style:italic;}
+  .frac{display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle; margin:0 .2em; line-height:1.15;}
+  .frac .num{border-bottom:1.4px solid var(--ink); padding:0 .2em 2px;}
+  .frac .den{padding:2px .2em 0;}
+  sub,sup{font-size:.7em;}
+
+  table.result{
+    width:100%; border-collapse:collapse; margin:16px 0; font-size:14.5px;
+    font-family:ui-monospace,monospace;
+  }
+  table.result caption{caption-side:top; text-align:left; font-family:-apple-system,sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); margin-bottom:8px;}
+  table.result th, table.result td{border:1px solid var(--rule); padding:7px 11px; text-align:right; font-variant-numeric:tabular-nums;}
+  table.result th{text-align:left; background:var(--surface); font-family:-apple-system,sans-serif; font-weight:600; color:var(--ink-muted); font-size:12.5px; text-transform:uppercase; letter-spacing:.03em;}
+  table.result td:first-child{text-align:left; color:var(--ink-muted);}
+  .tbl-wrap{overflow-x:auto; border-radius:4px;}
+  .pill{display:inline-block; font-size:12px; padding:2px 9px; border-radius:20px; font-family:-apple-system,sans-serif; font-weight:600;}
+  .pill.pass{background:var(--moss-tint); color:var(--moss-strong);}
+  .pill.fail{background:var(--clay-tint); color:var(--clay);}
+
+  /* ============ CODE / DETAILS ============ */
+  details.code-drop{margin:22px 0; border-radius:6px; overflow:hidden; border:1px solid var(--rule-strong); box-shadow:var(--shadow);}
+  details.code-drop summary{
+    list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px;
+    background:var(--surface); padding:12px 16px; font-family:-apple-system,sans-serif;
+    font-size:13.5px; font-weight:600; color:var(--ink); user-select:none;
+    border-bottom:1px solid transparent;
+  }
+  details.code-drop[open] summary{border-bottom-color:var(--rule);}
+  details.code-drop summary::-webkit-details-marker{display:none;}
+  details.code-drop summary .chev{transition:transform .15s ease; color:var(--ink-faint); font-size:11px;}
+  details.code-drop[open] summary .chev{transform:rotate(90deg);}
+  details.code-drop summary .rtag{
+    background:var(--moss-tint); color:var(--moss-strong); font-family:ui-monospace,monospace;
+    font-size:11px; padding:2px 7px; border-radius:3px; letter-spacing:.02em;
+  }
+  details.code-drop summary .flabel{color:var(--ink-faint); font-weight:400; font-family:ui-monospace,monospace; font-size:12.5px; margin-left:auto;}
+  .code-panel{background:var(--code-bg); color:var(--code-ink);}
+  .code-file{
+    display:flex; align-items:center; gap:8px; padding:9px 16px;
+    font-family:ui-monospace,monospace; font-size:12px; color:var(--code-muted);
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .code-file .dot{width:7px; height:7px; border-radius:50%; background:var(--code-accent); opacity:.7;}
+  .code-panel pre{margin:0; padding:16px 18px 18px; overflow-x:auto; font-size:13.5px; line-height:1.65;}
+  .code-panel code{white-space:pre;}
+  .code-panel .cm{color:var(--code-muted);}
+  .code-panel .fn{color:var(--code-accent);}
+
+  .callout{
+    border:1px solid var(--rule-strong); background:var(--surface); border-radius:4px;
+    padding:16px 20px; margin:20px 0; font-size:15px;
+  }
+  .callout.warn{border-color:var(--clay); background:var(--clay-tint);}
+  .callout.warn strong{color:var(--clay);}
+  .callout.note strong{color:var(--moss-strong);}
+  .callout .lbl{font-family:-apple-system,sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; color:var(--ink-faint); display:block; margin-bottom:6px;}
+
+  figure.diagram{margin:26px 0; padding:20px; background:var(--surface); border:1px solid var(--rule); border-radius:6px;}
+  figure.diagram svg{width:100%; height:auto; display:block; color:var(--ink);}
+  figure.diagram figcaption{margin-top:14px; font-size:13.5px; color:var(--ink-muted); font-family:Charter,Georgia,serif; font-style:italic; text-align:center;}
+
+  .toolbar{display:flex; justify-content:flex-end; gap:10px; margin:-8px 0 8px;}
+  .toolbar button{
+    font-family:-apple-system,sans-serif; font-size:12.5px; font-weight:600; color:var(--ink-muted);
+    background:var(--surface); border:1px solid var(--rule-strong); border-radius:20px; padding:5px 14px;
+    cursor:pointer;
+  }
+  .toolbar button:hover{color:var(--ink); border-color:var(--moss);}
+
+  .deliverables{display:grid; gap:14px; margin:20px 0;}
+  .deliverables .d{
+    display:grid; grid-template-columns:34px 1fr; gap:14px; align-items:start;
+    padding:14px 16px; background:var(--surface); border:1px solid var(--rule); border-radius:4px;
+  }
+  .deliverables .d .dn{font-family:ui-monospace,monospace; color:var(--ochre); font-weight:700; font-size:14px;}
+  .deliverables .d h4{font-size:15px; margin-bottom:3px;}
+  .deliverables .d .file{font-family:ui-monospace,monospace; font-size:12.5px; color:var(--ink-faint);}
+  .deliverables .d p{font-size:14px; color:var(--ink-muted); margin:6px 0 0;}
+
+  .pkg-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:14px; margin:20px 0;}
+  .pkg-grid .grp{background:var(--surface); border:1px solid var(--rule); border-radius:4px; padding:14px 16px;}
+  .pkg-grid .grp h4{font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-faint); margin-bottom:8px;}
+  .pkg-grid .grp code{display:block; font-size:14px; margin-bottom:4px; color:var(--ink);}
+  .pkg-grid .grp.later{border-style:dashed; opacity:.85;}
+
+  footer{max-width:900px; margin:0 auto; padding:40px 24px 0; border-top:1px solid var(--rule); text-align:center;}
+  footer p{margin:0 auto; color:var(--ink-faint); font-size:13px; max-width:60ch;}
+
+  .backtop{position:fixed; right:20px; bottom:20px; width:38px; height:38px; border-radius:50%; background:var(--moss); color:var(--surface-2); display:flex; align-items:center; justify-content:center; text-decoration:none; box-shadow:var(--shadow); font-size:16px; opacity:0; pointer-events:none; transition:opacity .2s;}
+  .backtop.show{opacity:1; pointer-events:auto;}
+</style>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="hero">
+  <span class="hero-eyebrow display">Data analysis &amp; coding team · workshop</span>
+  <h1>Regional Map Updating Framework</h1>
+  <p class="sub">Take an existing large-scale spatial product, fold in regional ground observations and high-resolution covariates, and produce a defensible regional posterior map — with an honest answer to whether it's precise enough to manage by.</p>
+  <div class="hero-meta display">
+    <span><b>Format —</b> concept, then pen &amp; paper, then a dropdown with the R</span>
+    <span><b>Resolution target —</b> 10–30 m posterior</span>
+    <span><b>Stack —</b> terra · tidymodels · targets</span>
+  </div>
+</div>
+
+<div class="philosophy">
+  <div class="tenet">
+    <div class="n">01</div>
+    <h3 class="display">Spreadsheet first</h3>
+    <p>Every calculation in this workshop can be done by hand with five numbers and a calculator before it's written in R. If the R code and the hand calculation disagree, trust the hand calculation and fix the code.</p>
+  </div>
+  <div class="tenet">
+    <div class="n">02</div>
+    <h3 class="display">Start simple</h3>
+    <p>Independent pixels, ordinary cross-validation, Normal–Normal Bayesian updates. Spatial covariance, hierarchical models, and INLA come later — only once this version is demonstrated and validated.</p>
+  </div>
+</div>
+
+<div class="shell">
+  <nav class="sidenav" aria-label="Workshop steps">
+    <h4 class="display">Contents</h4>
+    <ol id="toc">
+      <li><a href="#overview"><span class="idx">·</span>The big picture</a></li>
+      <li><a href="#step-0"><span class="idx">00</span>What do we know?</a></li>
+      <li><a href="#step-1"><span class="idx">01</span>Characterize the prior</a></li>
+      <li><a href="#step-2"><span class="idx">02</span>Harmonize ground data</a></li>
+      <li><a href="#step-3"><span class="idx">03</span>Extract prior + covariates</a></li>
+      <li><a href="#step-4"><span class="idx">04</span>Prior vs. observed</a></li>
+      <li><a href="#step-5"><span class="idx">05</span>Spatial residuals</a></li>
+      <li><a href="#step-6"><span class="idx">06</span>Build the regional model</a></li>
+      <li><a href="#step-7"><span class="idx">07</span>Validate the model</a></li>
+      <li><a href="#step-8"><span class="idx">08</span>Prior vs. regional RF</a></li>
+      <li><a href="#step-9"><span class="idx">09</span>Bayesian update</a></li>
+      <li><a href="#step-10"><span class="idx">10</span>Apply it spatially</a></li>
+      <li><a href="#step-11"><span class="idx">11</span>Create the posterior map</a></li>
+      <li><a href="#step-12"><span class="idx">12</span>Change of support</a></li>
+      <li><a href="#step-13"><span class="idx">13</span>Compare the maps</a></li>
+      <li><a href="#step-14"><span class="idx">14</span>Not yet: full spatial Bayes</a></li>
+      <li><a href="#step-15"><span class="idx">15</span>Management precision</a></li>
+      <li><a href="#step-16"><span class="idx">16</span>Iterative sampling</a></li>
+      <li class="grp">Wrap-up</li>
+      <li><a href="#architecture"><span class="idx">·</span>Architecture &amp; packages</a></li>
+      <li><a href="#deliverables"><span class="idx">·</span>First deliverable</a></li>
+      <li><a href="#targets"><span class="idx">·</span>Scripts → targets</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+
+  <section class="step" id="overview">
+    <div class="step-head"><h2>The big picture</h2></div>
+    <p>Seventeen steps, but one shape: characterize what you already believe, confront it with new evidence, update it, and check whether the result is good enough to act on. Everything below is a zoomed-in view of one node in this pipeline.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 380 780" role="img" aria-label="Master workflow: What do we know, characterize the prior, process ground data, extract prior and covariates, compare observed vs prior, spatial residual analysis, build regional model, validate regional model, Bayesian update, create 10 to 30 metre posterior, aggregate and check change of support, compare estimate and uncertainty, test management precision, iterate sampling if necessary.">
+        <defs>
+          <marker id="arrow1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <!-- node generator: y = 18 + i*54, box height 32 -->
+        <g font-family="ui-monospace,monospace" font-size="12.5">
+          <!-- connecting spine -->
+          <line x1="190" y1="50" x2="190" y2="744" stroke="currentColor" stroke-width="1" opacity="0.18" marker-end="url(#arrow1)"/>
+        </g>
+        <!-- rows -->
+        <g>
+          <!-- template repeated manually -->
+        </g>
+        <g transform="translate(0,0)">
+          <!-- Row 0 -->
+          <g transform="translate(30,18)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">00</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">What do we know?</text></g>
+          <g transform="translate(30,72)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">01</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Characterize the prior</text></g>
+          <g transform="translate(30,126)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">02</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Process / harmonize ground data</text></g>
+          <g transform="translate(30,180)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">03</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Extract prior + covariates</text></g>
+          <g transform="translate(30,234)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">04</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Compare observed vs. prior</text></g>
+          <g transform="translate(30,288)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">05</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Spatial residual analysis</text></g>
+          <g transform="translate(30,342)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">06</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Build regional model</text></g>
+          <g transform="translate(30,396)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">07</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Validate regional model</text></g>
+          <g transform="translate(30,450)"><rect width="320" height="32" rx="3" fill="none" stroke="var(--ochre)" stroke-width="1.4"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="var(--ochre)">08</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Bayesian update</text></g>
+          <g transform="translate(30,504)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">09</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Create 10–30 m posterior</text></g>
+          <g transform="translate(30,558)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">10</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Aggregate / check change of support</text></g>
+          <g transform="translate(30,612)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">11</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Compare estimate + uncertainty</text></g>
+          <g transform="translate(30,666)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">12</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Test management precision</text></g>
+          <g transform="translate(30,720)"><rect width="320" height="32" rx="3" fill="none" stroke="currentColor" opacity="0.35"/><text x="10" y="21" font-family="ui-monospace,monospace" font-size="12" fill="currentColor" opacity="0.55">13</text><text x="38" y="21" font-family="-apple-system,sans-serif" font-size="13" fill="currentColor">Iterate sampling if necessary</text></g>
+        </g>
+      </svg>
+      <figcaption>The condensed pipeline (steps 0–13). The walkthrough below unpacks step 8 — the Bayesian update — into finer sub-steps 9–16, so each has its own worked example and function.</figcaption>
+    </figure>
+
+    <div class="callout note">
+      <span class="lbl display">Numbering note</span>
+      This overview uses one number per pipeline stage. The step-by-step walkthrough that follows is more granular — it splits "Bayesian update" into the update itself, the spatial application, the posterior export, the change-of-support check, and the precision test — so its numbers run 0 through 16. Both describe the same pipeline at different zoom levels.
+    </div>
+  </section>
+
+  <section class="step" id="step-0">
+    <div class="step-head"><span class="step-num">STEP 00</span><h2>What do we know?</h2></div>
+    <p class="step-question">Before any modelling: what information already exists, and what does each piece actually represent?</p>
+
+    <p>Build one inventory that covers everything — raster maps, uncertainty rasters, ground observations, soil cores, vector layers, ecosystem classifications, remote-sensing products, management boundaries, existing model outputs, ancillary data. The point isn't the list; it's that every dataset gets forced into the <em>same</em> table, with the same five columns, so nothing enters the workflow with unstated assumptions.</p>
+
+    <div class="tbl-wrap">
+    <table class="result">
+      <caption>Required table — one row per dataset</caption>
+      <thead><tr><th>Feature / dataset</th><th>Mean estimate</th><th>Uncertainty</th><th>Data</th><th>Spatial support</th></tr></thead>
+      <tbody>
+        <tr><td>Prior carbon map</td><td>150 Mg C/ha</td><td>±30 Mg C/ha</td><td>Raster</td><td>250 m</td></tr>
+        <tr><td>Prior uncertainty</td><td>—</td><td>30 Mg C/ha</td><td>Raster</td><td>250 m</td></tr>
+        <tr><td>Soil cores</td><td>165 Mg C/ha</td><td>±20 Mg C/ha</td><td>Ground</td><td>Core / plot</td></tr>
+        <tr><td>Wetland boundary</td><td>—</td><td>—</td><td>Vector</td><td>Polygon</td></tr>
+        <tr><td>Sentinel-2 NDVI</td><td>—</td><td>—</td><td>Raster</td><td>10 m</td></tr>
+        <tr><td>DEM</td><td>—</td><td>—</td><td>Raster</td><td>30 m</td></tr>
+        <tr><td>Land cover</td><td>—</td><td>—</td><td>Raster</td><td>10–30 m</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p style="font-size:14.5px;color:var(--ink-muted)">No mean/uncertainty available? Write <span class="mono">NA</span> or "not applicable" — never leave the cell blank, and never invent a number.</p>
+
+    <div class="callout note">
+      <span class="lbl display">Why spatial support gets its own column</span>
+      A 250-m raster cell and a soil core are not the same kind of observation. Writing the support down forces the question <em>what area does this one piece of information actually represent?</em> before that assumption gets buried three modelling steps downstream.
+    </div>
+
+    <div class="penpaper">
+      <p><strong>For each dataset in your project, write down by hand:</strong></p>
+      <ol>
+        <li>What does it measure?</li>
+        <li>What is its estimate?</li>
+        <li>What is its uncertainty?</li>
+        <li>How was that uncertainty generated?</li>
+        <li>What spatial area does one observation represent?</li>
+      </ol>
+      <p style="margin-top:12px">Don't proceed to Step 1 until this table exists on paper for your real datasets.</p>
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Build the inventory as one function <span class="flabel">R/step00_data_inventory.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step00_data_inventory.R</div>
+        <pre><code><span class="fn">build_data_inventory</span> &lt;- function() {
+  data.frame(
+    dataset = c(
+      "Prior carbon", "Prior uncertainty", "Ground cores",
+      "Sentinel-2", "DEM", "Land cover"
+    ),
+    mean_estimate = c(
+      150, NA, 165, NA, NA, NA
+    ),
+    uncertainty = c(
+      30, 30, 20, NA, NA, NA
+    ),
+    data_type = c(
+      "raster", "raster", "ground",
+      "raster", "raster", "raster"
+    ),
+    spatial_support = c(
+      "250 m", "250 m", "core",
+      "10 m", "30 m", "10 m"
+    ),
+    stringsAsFactors = FALSE
+  )
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_00_data_inventory.R</div>
+        <pre><code><span class="cm"># One function, run once, one artifact on disk.</span>
+<span class="cm"># This is the pattern every step below follows.</span>
+source(<span class="cm">"R/step00_data_inventory.R"</span>)
+
+inventory &lt;- <span class="fn">build_data_inventory</span>()
+dir.create(<span class="cm">"outputs"</span>, showWarnings = FALSE)
+write.csv(inventory, <span class="cm">"outputs/data_inventory.csv"</span>, row.names = FALSE)
+print(inventory)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-1">
+    <div class="step-head"><span class="step-num">STEP 01</span><h2>Characterize the prior over the AOI</h2></div>
+    <p class="step-question">What does the existing map tell us about our region?</p>
+    <p>Two rasters come in: <span class="mono">prior_mean.tif</span> and <span class="mono">prior_sd.tif</span>. Both get summarized over the AOI — but the two summaries mean different things, and conflating them is the single most common mistake in this step.</p>
+
+    <h3 class="sub-h">1a — the estimate</h3>
+    <div class="formula-card">
+      <div class="label">AOI mean</div>
+      <span class="formula"><span class="mono">x̄<sub>AOI</sub></span> = <span class="frac"><span class="num">1</span><span class="den">n</span></span> Σᵢ x<sub>i</sub></span>
+    </div>
+    <div class="penpaper">
+      <p>Five pixels inside the AOI:</p>
+      <div class="worked">x = 120, 140, 150, 160, 180
+x̄ = (120+140+150+160+180) / 5 = <span class="res">150</span></div>
+      <p style="margin-top:10px">Mean prior estimate = <strong>150 Mg C/ha</strong>. Straightforward.</p>
+    </div>
+
+    <h3 class="sub-h">1b — what the uncertainty raster is <em>not</em></h3>
+    <p>Averaging the per-pixel SD raster gives the <strong>typical uncertainty of one pixel</strong> — a useful, honest number. It is <strong>not</strong> the uncertainty of the AOI-wide mean.</p>
+    <div class="penpaper">
+      <p>Five pixel SDs:</p>
+      <div class="worked">SD = 20, 25, 30, 25, 20
+mean(SD) = <span class="res">24</span></div>
+      <p style="margin-top:10px">Report: <em>"typical pixel uncertainty = 24 Mg C/ha."</em><br>Do not report: <em>"AOI uncertainty = 24 Mg C/ha."</em> Those are different claims.</p>
+    </div>
+
+    <h3 class="sub-h">1c — the (tempting, incomplete) formula for the mean's uncertainty</h3>
+    <div class="formula-card">
+      <div class="label">If pixel errors were independent</div>
+      <span class="formula">Var(x̄) = <span class="frac"><span class="num">1</span><span class="den">n²</span></span> Σᵢ σᵢ²  &nbsp;→&nbsp;  SD<sub>x̄</sub> = √( Σσᵢ² / n² )</span>
+    </div>
+    <div class="callout warn">
+      <span class="lbl">Why we don't use this yet</span>
+      Nearby pixels have <strong>correlated</strong> errors — they came from the same underlying model with the same biases. Treating them as independent will <strong>understate</strong> the true uncertainty of the AOI mean whenever spatial autocorrelation is real, which for a carbon prior it usually is.
+    </div>
+
+    <h3 class="sub-h">Version 1 rule</h3>
+    <p>Report two separate, clearly-labelled numbers and stop there:</p>
+    <ul style="font-size:15.5px; color:var(--ink-muted)">
+      <li><strong style="color:var(--ink)">AOI estimate</strong> — x̄</li>
+      <li><strong style="color:var(--ink)">Mean pixel-level SD within AOI</strong> — mean(SD), explicitly labelled as such</li>
+    </ul>
+    <p>If management eventually needs a formal AOI-total uncertainty, that's where spatial covariance or posterior simulation gets added later — not now.</p>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Summarize the prior over the AOI <span class="flabel">R/step01_characterize_prior.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step01_characterize_prior.R</div>
+        <pre><code><span class="fn">characterize_prior</span> &lt;- function(prior_mean, prior_sd, aoi) {
+  library(terra)
+  pm &lt;- mask(crop(prior_mean, aoi), aoi)
+  ps &lt;- mask(crop(prior_sd, aoi), aoi)
+
+  list(
+    aoi_mean_estimate    = as.numeric(global(pm, "mean", na.rm = TRUE)),
+    mean_pixel_sd_in_aoi = as.numeric(global(ps, "mean", na.rm = TRUE))
+  )
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_01_characterize_prior.R</div>
+        <pre><code>source(<span class="cm">"R/step01_characterize_prior.R"</span>)
+library(terra)
+
+prior_mean &lt;- rast(<span class="cm">"data/prior_mean.tif"</span>)
+prior_sd   &lt;- rast(<span class="cm">"data/prior_sd.tif"</span>)
+aoi        &lt;- vect(<span class="cm">"data/aoi.gpkg"</span>)
+
+result &lt;- <span class="fn">characterize_prior</span>(prior_mean, prior_sd, aoi)
+print(result)
+
+<span class="cm"># sanity-check against the hand calculation above</span>
+stopifnot(round(mean(c(120, 140, 150, 160, 180))) == 150)
+stopifnot(round(mean(c(20, 25, 30, 25, 20))) == 24)</code></pre>
+        <div class="code-file"><span class="dot"></span>GEE equivalent</div>
+        <pre><code>image.reduceRegion({
+  reducer: ee.Reducer.mean(),
+  geometry: AOI,
+  scale: 250,
+  maxPixels: 1e9
+});
+<span class="cm">// run once on the estimate image, once on the uncertainty image</span></code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-2">
+    <div class="step-head"><span class="step-num">STEP 02</span><h2>Process and harmonize the ground data</h2></div>
+    <p class="step-question">What did we actually measure in the field, and how do we turn it into the variable we want to map?</p>
+
+    <div class="formula-card" style="border-left-color:var(--moss)">
+      <div class="label" style="color:var(--moss-strong)">Chain of transformations</div>
+      <span class="formula">Field measurements → Carbon calculation → Depth harmonization → Final response variable</span>
+    </div>
+    <p>Target depths for this project: 0–15, 15–30, 30–50, 50–100 cm.</p>
+
+    <h3 class="sub-h">2a — one core, by hand, first</h3>
+    <div class="formula-card">
+      <div class="label">Stock for one layer</div>
+      <span class="formula">SOC<sub>stock</sub> = SOC<sub>conc</sub> × BulkDensity × Depth × (1 − CF)</span>
+      <span class="cap">CF = coarse-fragment fraction. Make every unit conversion visible — this is exactly what the spreadsheet is for.</span>
+    </div>
+    <div class="penpaper">
+      <p>One layer:</p>
+      <div class="worked">SOC concentration = 20 g/kg = 0.020 g SOC per g soil
+bulk density       = 1.2 g/cm³
+thickness          = 15 cm  →  15 cm × 10 000 cm²/m² = 150 000 cm³ per m² column
+coarse fragments   = 0 (ignore CF term)
+
+mass of soil in column = 1.2 g/cm³ × 150 000 cm³ = 180 000 g/m²
+SOC mass                = 0.020 × 180 000 g/m² = 3 600 g/m² = 3.6 kg/m²
+convert to Mg/ha (×10)  = <span class="res">36 Mg C/ha</span> for this one 15 cm layer</div>
+      <p style="margin-top:10px">Work through one complete core by hand before writing any code — the spreadsheet should make every unit conversion visible so the R output can be checked against it line by line.</p>
+    </div>
+
+    <h3 class="sub-h">2b — harmonizing to target depths</h3>
+    <p>Field intervals rarely line up with modelling intervals. Where a target interval overlaps two measured layers, split each contributing stock proportionally to how much of the target interval it covers:</p>
+    <div class="formula-card">
+      <div class="label">Overlap-weighted stock</div>
+      <span class="formula">Stock<sub>target</sub> = Stock₁ × <span class="frac"><span class="num">overlap₁</span><span class="den">depth₁</span></span> + Stock₂ × <span class="frac"><span class="num">overlap₂</span><span class="den">depth₂</span></span></span>
+    </div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 640 165" role="img" aria-label="Depth harmonization diagram: measured intervals of 0 to 10, 10 to 25, 25 to 40, 40 to 70, and 70 to 100 centimetres are re-cut by dashed target boundaries at 15, 30, and 50 centimetres to build target intervals of 0 to 15, 15 to 30, 30 to 50, and 50 to 100 centimetres.">
+        <text x="20" y="24" font-family="-apple-system,sans-serif" font-size="12" fill="currentColor" opacity="0.7">measured intervals (cm)</text>
+        <g transform="translate(0,34)">
+          <rect x="20" y="0" width="60" height="26" fill="none" stroke="currentColor" opacity="0.55"/>
+          <rect x="80" y="0" width="90" height="26" fill="none" stroke="currentColor" opacity="0.55"/>
+          <rect x="170" y="0" width="90" height="26" fill="none" stroke="currentColor" opacity="0.55"/>
+          <rect x="260" y="0" width="180" height="26" fill="none" stroke="currentColor" opacity="0.55"/>
+          <rect x="440" y="0" width="180" height="26" fill="none" stroke="currentColor" opacity="0.55"/>
+          <text x="50" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="currentColor">0–10</text>
+          <text x="125" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="currentColor">10–25</text>
+          <text x="215" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="currentColor">25–40</text>
+          <text x="350" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="currentColor">40–70</text>
+          <text x="530" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="currentColor">70–100</text>
+        </g>
+        <line x1="110" y1="34" x2="110" y2="128" stroke="var(--ochre)" stroke-width="1.2" stroke-dasharray="3,3"/>
+        <line x1="200" y1="34" x2="200" y2="128" stroke="var(--ochre)" stroke-width="1.2" stroke-dasharray="3,3"/>
+        <line x1="320" y1="34" x2="320" y2="128" stroke="var(--ochre)" stroke-width="1.2" stroke-dasharray="3,3"/>
+        <g transform="translate(0,98)">
+          <rect x="20" y="0" width="90" height="26" fill="none" stroke="var(--moss)" stroke-width="1.4"/>
+          <rect x="110" y="0" width="90" height="26" fill="none" stroke="var(--moss)" stroke-width="1.4"/>
+          <rect x="200" y="0" width="120" height="26" fill="none" stroke="var(--moss)" stroke-width="1.4"/>
+          <rect x="320" y="0" width="300" height="26" fill="none" stroke="var(--moss)" stroke-width="1.4"/>
+          <text x="65" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="var(--moss-strong)">0–15</text>
+          <text x="155" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="var(--moss-strong)">15–30</text>
+          <text x="260" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="var(--moss-strong)">30–50</text>
+          <text x="470" y="17" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="var(--moss-strong)">50–100</text>
+        </g>
+        <text x="20" y="150" font-family="-apple-system,sans-serif" font-size="12" fill="var(--moss-strong)" opacity="0.9">target intervals (cm)</text>
+      </svg>
+      <figcaption>The 15 cm boundary cuts through the measured 10–25 layer — that layer's stock is split proportionally between the 0–15 and 15–30 targets.</figcaption>
+    </figure>
+
+    <div class="penpaper">
+      <p>Target 0–15 needs: all of measured 0–10, plus the top 5 cm of measured 10–25 (a 15 cm layer, so 5/15 of its stock).</p>
+      <div class="worked">Stock(0–10)  = 24 Mg C/ha  (full layer, full overlap)
+Stock(10–25) = 33 Mg C/ha, overlap with 0–15 target = 5 of 15 cm
+
+Stock(0–15) = 24 × (10/10) + 33 × (5/15)
+            = 24 + 11
+            = <span class="res">35 Mg C/ha</span></div>
+    </div>
+
+    <h3 class="sub-h">Which R package?</h3>
+    <table class="result" style="font-family:-apple-system,sans-serif; font-size:14px;">
+      <thead><tr><th>Package</th><th style="text-align:left">Fit for this step</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">aqp</td><td style="text-align:left">Strong general soil-profile framework (<span class="mono">SoilProfileCollection</span>). <span class="mono">aqp::harmonize()</span> is for denormalizing profile-level structures, not a depth-interpolation tool — use it if you want a structured profile data system alongside step 2, not as the harmonizer itself.</td></tr>
+        <tr><td class="mono">soilassessment</td><td style="text-align:left"><strong>Recommended.</strong> <span class="mono">depthharm()</span> takes observed intervals and returns properties at specified target intervals — directly the task at hand.</td></tr>
+        <tr><td class="mono">iTHiR</td><td style="text-align:left">Built for spectroscopy / infrared workflows. Not the default for plain depth harmonization.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Version 1: spreadsheet → <span class="mono">soilassessment::depthharm()</span></strong>, checked against the hand calculation above before it's trusted.</p>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Harmonize one core to target depths <span class="flabel">R/step02_harmonize_depths.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step02_harmonize_depths.R</div>
+        <pre><code><span class="fn">harmonize_core_depths</span> &lt;- function(soil_data,
+                                    target_depths = c(0, 15, 30, 50, 100)) {
+  library(soilassessment)
+  depthharm(
+    soildata = soil_data,
+    var.name = "soc",
+    lam = 0.1,
+    d = target_depths
+  )
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_02_harmonize_depths.R</div>
+        <pre><code>source(<span class="cm">"R/step02_harmonize_depths.R"</span>)
+
+soil_data  &lt;- read.csv(<span class="cm">"data/soil_cores_raw.csv"</span>)
+harmonized &lt;- <span class="fn">harmonize_core_depths</span>(soil_data)
+
+write.csv(harmonized, <span class="cm">"outputs/soil_cores_harmonized.csv"</span>, row.names = FALSE)
+head(harmonized)
+
+<span class="cm"># check the first core's 0-15 cm value against the hand calculation: 35 Mg C/ha</span></code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-3">
+    <div class="step-head"><span class="step-num">STEP 03</span><h2>Extract prior and covariates</h2></div>
+    <p class="step-question">What did the prior predict at each ground observation, and what environmental conditions occurred there?</p>
+    <p>This builds the modelling dataset — one row per plot, with the prior, its SD, and every covariate sampled at that exact point:</p>
+
+    <div class="tbl-wrap">
+    <table class="result">
+      <caption>Modelling dataset</caption>
+      <thead><tr><th>Plot</th><th>Observed</th><th>Prior</th><th>Prior SD</th><th>NDVI</th><th>Elevation</th><th>Slope</th><th>Landcover</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>140</td><td>130</td><td>25</td><td>.62</td><td>110</td><td>3</td><td>Forest</td></tr>
+        <tr><td>2</td><td>155</td><td>150</td><td>30</td><td>.71</td><td>125</td><td>5</td><td>Forest</td></tr>
+        <tr><td>3</td><td>170</td><td>160</td><td>20</td><td>.80</td><td>100</td><td>2</td><td>Wetland</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout note">
+      <span class="lbl display">Division of labour</span>
+      <span class="formula" style="font-size:14.5px">Google Earth Engine → covariate extraction → CSV / GeoPackage → RStudio → statistics, modelling, validation</span>
+      <p style="margin:10px 0 0; font-size:14.5px">Use GEE (via <span class="mono">sampleRegions()</span>, or <span class="mono">rgee</span> as the ingestion bridge) for what it's good at — pulling raster predictors to field points at scale — but keep the statistical workflow in R so it never depends on GEE being available.</p>
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Extract prior + covariates to plots <span class="flabel">R/step03_extract_covariates.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step03_extract_covariates.R</div>
+        <pre><code><span class="fn">extract_prior_covariates</span> &lt;- function(field, prior_mean, prior_sd, covariate_stack) {
+  library(terra)
+  field$prior    &lt;- terra::extract(prior_mean, field)[, 2]
+  field$prior_sd &lt;- terra::extract(prior_sd, field)[, 2]
+
+  cov_vals &lt;- terra::extract(covariate_stack, field)[, -1]
+  cbind(field, cov_vals)
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_03_extract_covariates.R</div>
+        <pre><code>source(<span class="cm">"R/step03_extract_covariates.R"</span>)
+library(terra)
+
+field      &lt;- vect(<span class="cm">"data/field_plots.gpkg"</span>)
+prior_mean &lt;- rast(<span class="cm">"data/prior_mean.tif"</span>)
+prior_sd   &lt;- rast(<span class="cm">"data/prior_sd.tif"</span>)
+covariates &lt;- rast(list(
+  ndvi      = <span class="cm">"data/sentinel2_ndvi.tif"</span>,
+  elevation = <span class="cm">"data/dem.tif"</span>,
+  slope     = <span class="cm">"data/slope.tif"</span>
+))
+
+modelling_data &lt;- <span class="fn">extract_prior_covariates</span>(field, prior_mean, prior_sd, covariates)
+writeVector(modelling_data, <span class="cm">"outputs/modelling_dataset.gpkg"</span>, overwrite = TRUE)
+head(as.data.frame(modelling_data))</code></pre>
+        <div class="code-file"><span class="dot"></span>GEE equivalent</div>
+        <pre><code><span class="cm">// sampleRegions() extracts every band of an image (or image stack)</span>
+<span class="cm">// to a FeatureCollection of field points, then export to CSV / GeoPackage</span>
+var sampled = covariateImage.sampleRegions({
+  collection: fieldPoints,
+  scale: 10,
+  geometries: true
+});</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-4">
+    <div class="step-head"><span class="step-num">STEP 04</span><h2>Prior vs. observed</h2></div>
+    <p class="step-question">How well does the existing prior agree with our regional field observations?</p>
+    <div class="formula-card">
+      <div class="label">Per-plot residual</div>
+      <span class="formula">r<sub>i</sub> = y<sub>i</sub> − P<sub>i</sub></span>
+    </div>
+
+    <div class="tbl-wrap">
+    <table class="result">
+      <caption>Residuals</caption>
+      <thead><tr><th>Plot</th><th>Observed</th><th>Prior</th><th>Residual</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>140</td><td>130</td><td>+10</td></tr>
+        <tr><td>2</td><td>155</td><td>150</td><td>+5</td></tr>
+        <tr><td>3</td><td>170</td><td>160</td><td>+10</td></tr>
+        <tr><td>4</td><td>125</td><td>140</td><td>−15</td></tr>
+        <tr><td>5</td><td>160</td><td>150</td><td>+10</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="penpaper">
+      <div class="worked">Bias = (10+5+10−15+10) / 5 = <span class="res">+4 Mg C/ha</span>
+MAE  = (10+5+10+15+10) / 5 = <span class="res">10.0 Mg C/ha</span>
+RMSE = sqrt((100+25+100+225+100) / 5) = <span class="res">10.5 Mg C/ha</span></div>
+      <p style="margin-top:10px">The prior underestimates by roughly 4 Mg C/ha on average — a small, systematic bias, not yet evidence of a broken prior.</p>
+    </div>
+
+    <div class="formula-card">
+      <div class="label">Four diagnostics</div>
+      <span class="formula" style="display:block; line-height:2">
+        Bias = (1/n) Σ(yᵢ − Pᵢ)<br>
+        MAE &nbsp;= (1/n) Σ|yᵢ − Pᵢ|<br>
+        RMSE = √[ (1/n) Σ(yᵢ − Pᵢ)² ]<br>
+        z<sub>i</sub> &nbsp;&nbsp;= (yᵢ − Pᵢ) / SD<sub>prior,i</sub>
+      </span>
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Bias, MAE, RMSE, standardized residuals <span class="flabel">R/step04_compare_prior_observed.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step04_compare_prior_observed.R</div>
+        <pre><code><span class="cm"># base R is preferable to a package here — the calculation is this simple</span>
+<span class="fn">compare_prior_observed</span> &lt;- function(field) {
+  field$residual   &lt;- field$observed - field$prior
+  field$z_residual &lt;- field$residual / field$prior_sd
+
+  list(
+    field = field,
+    bias  = mean(field$residual),
+    mae   = mean(abs(field$residual)),
+    rmse  = sqrt(mean(field$residual^2))
+  )
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_04_compare_prior_observed.R</div>
+        <pre><code>source(<span class="cm">"R/step04_compare_prior_observed.R"</span>)
+field &lt;- read.csv(<span class="cm">"outputs/modelling_dataset.csv"</span>)
+
+comparison &lt;- <span class="fn">compare_prior_observed</span>(field)
+print(comparison[c(<span class="cm">"bias"</span>, <span class="cm">"mae"</span>, <span class="cm">"rmse"</span>)])
+write.csv(comparison$field, <span class="cm">"outputs/prior_vs_observed.csv"</span>, row.names = FALSE)
+saveRDS(comparison[c(<span class="cm">"bias"</span>, <span class="cm">"mae"</span>, <span class="cm">"rmse"</span>)], <span class="cm">"outputs/prior_metrics.rds"</span>)
+
+<span class="cm"># check against the worked example: bias == 4, mae == 10, rmse == 10.5</span>
+stopifnot(mean(c(10, 5, 10, -15, 10)) == 4)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-5">
+    <div class="step-head"><span class="step-num">STEP 05</span><h2>Spatial residual analysis</h2></div>
+    <p class="step-question">Where is the prior wrong?</p>
+    <p>Start extremely simple: plot the residuals in space, then look at them against latitude, longitude, land cover, NDVI, elevation. Only <em>then</em>, if there's visible structure, reach for Moran's I (<span class="mono">spdep</span>) or a variogram (<span class="mono">gstat</span>).</p>
+
+    <div class="callout warn">
+      <span class="lbl">Do not interpolate the residuals in Version 1</span>
+      Kriging the residuals now would hide exactly the observations we most need to look at directly. <span class="mono">gstat</span> also does point and block kriging, which is the eventual path to support-aware modelling — but that's a later version, once the raw pattern has actually been seen.
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Plot residuals, optionally test for spatial structure <span class="flabel">R/step05_spatial_residuals.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step05_spatial_residuals.R</div>
+        <pre><code><span class="fn">spatial_residual_diagnostics</span> &lt;- function(field_sf, run_moran = FALSE, run_variogram = FALSE) {
+  library(ggplot2)
+  p &lt;- ggplot(field_sf) +
+    geom_sf(aes(colour = residual)) +
+    scale_colour_gradient2(low = "#2F5233", mid = "grey90", high = "#93392A")
+
+  out &lt;- list(plot = p)
+
+  if (run_moran) {
+    library(spdep)
+    nb &lt;- knn2nb(knearneigh(sf::st_coordinates(field_sf), k = 4))
+    lw &lt;- nb2listw(nb)
+    out$moran &lt;- moran.test(field_sf$residual, lw)
+  }
+  if (run_variogram) {
+    library(gstat)
+    out$variogram &lt;- variogram(residual ~ 1, data = field_sf)
+  }
+  out
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_05_spatial_residuals.R</div>
+        <pre><code>source(<span class="cm">"R/step05_spatial_residuals.R"</span>)
+library(sf)
+
+field_sf    &lt;- st_read(<span class="cm">"outputs/prior_vs_observed.gpkg"</span>)
+diagnostics &lt;- <span class="fn">spatial_residual_diagnostics</span>(field_sf, run_moran = TRUE)
+
+ggplot2::ggsave(<span class="cm">"outputs/residual_map.png"</span>, diagnostics$plot, width = 7, height = 5)
+print(diagnostics$moran)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-6">
+    <div class="step-head"><span class="step-num">STEP 06</span><h2>Build the regional model</h2></div>
+    <p class="step-question">Can high-resolution environmental information explain the ground observations?</p>
+    <div class="formula-card">
+      <div class="label">Model</div>
+      <span class="formula">Carbon = f(NDVI, Elevation, Slope, Soil, Sentinel-1, …)</span>
+    </div>
+
+    <div class="callout note">
+      <span class="lbl display">Standardize on tidymodels + ranger</span>
+      One consistent framework — <span class="mono">tidymodels</span> for the workflow (recipe, resampling, tuning, evaluation) and <span class="mono">ranger</span> as the Random Forest engine — instead of independently wiring up <span class="mono">caret</span>, <span class="mono">ranger</span>, and ad-hoc validation code. A <span class="mono">workflow</span> bundles the preprocessing recipe and the model spec into one reproducible object.
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Recipe + model spec → one workflow <span class="flabel">R/step06_build_regional_workflow.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step06_build_regional_workflow.R</div>
+        <pre><code><span class="fn">build_rf_workflow</span> &lt;- function(formula, data) {
+  library(tidymodels)
+
+  rf_model &lt;- rand_forest(trees = 500, mtry = tune(), min_n = tune()) |&gt;
+    set_mode("regression") |&gt;
+    set_engine("ranger")
+
+  rf_recipe &lt;- recipe(formula, data = data)
+
+  workflow() |&gt;
+    add_recipe(rf_recipe) |&gt;
+    add_model(rf_model)
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_06_build_regional_workflow.R</div>
+        <pre><code>source(<span class="cm">"R/step06_build_regional_workflow.R"</span>)
+training_data &lt;- read.csv(<span class="cm">"outputs/prior_vs_observed.csv"</span>)
+
+rf_workflow &lt;- <span class="fn">build_rf_workflow</span>(
+  observed ~ NDVI + elevation + slope + prior,
+  training_data
+)
+saveRDS(rf_workflow, <span class="cm">"outputs/rf_workflow.rds"</span>)
+rf_workflow</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-7">
+    <div class="step-head"><span class="step-num">STEP 07</span><h2>Validate the model</h2></div>
+    <p class="step-question">How does the model perform on observations it hasn't seen?</p>
+
+    <div class="penpaper">
+      <p>Three held-out predictions:</p>
+      <div class="worked">Observed  Predicted  Residual
+100       110         −10
+150       140         +10
+200       180         +20
+
+RMSE = sqrt((100+100+400) / 3) = <span class="res">14.1</span></div>
+    </div>
+
+    <p>Version 1 uses ordinary v-fold cross-validation — the assumption that folds are independent is a simplification we're making on purpose. Once this baseline is working, <span class="mono">spatialsample</span> extends the tidymodels ecosystem with spatially-structured resampling, which better respects that nearby ecological observations aren't independent.</p>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> 5-fold CV, no hand-written CV loop <span class="flabel">R/step07_validate_regional_workflow.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step07_validate_regional_workflow.R</div>
+        <pre><code><span class="fn">validate_rf_workflow</span> &lt;- function(workflow, data, v = 5, seed = 123) {
+  library(tidymodels)
+  set.seed(seed)
+
+  folds   &lt;- vfold_cv(data, v = v)
+  metrics &lt;- metric_set(rmse, mae, rsq)
+
+  results &lt;- workflow |&gt;
+    fit_resamples(resamples = folds, metrics = metrics)
+
+  collect_metrics(results)
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_07_validate_regional_workflow.R</div>
+        <pre><code>source(<span class="cm">"R/step07_validate_regional_workflow.R"</span>)
+rf_workflow   &lt;- readRDS(<span class="cm">"outputs/rf_workflow.rds"</span>)
+training_data &lt;- read.csv(<span class="cm">"outputs/prior_vs_observed.csv"</span>)
+
+cv_metrics &lt;- <span class="fn">validate_rf_workflow</span>(rf_workflow, training_data, v = 5)
+write.csv(cv_metrics, <span class="cm">"outputs/rf_cv_metrics.csv"</span>, row.names = FALSE)
+saveRDS(cv_metrics, <span class="cm">"outputs/rf_metrics.rds"</span>)
+print(cv_metrics)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-8">
+    <div class="step-head"><span class="step-num">STEP 08</span><h2>Start simple: prior vs. regional RF</h2></div>
+    <p class="step-question">Can a regional Random Forest predict the ground observations better than the prior?</p>
+
+    <div class="tbl-wrap">
+    <table class="result">
+      <caption>Only comparison that matters at this stage</caption>
+      <thead><tr><th>Model</th><th>RMSE</th><th>MAE</th><th>Bias</th></tr></thead>
+      <tbody>
+        <tr><td>Prior</td><td>10.5</td><td>10.0</td><td>+4.0</td></tr>
+        <tr><td>Regional RF</td><td>8.2</td><td>6.5</td><td>+0.8</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout warn">
+      <span class="lbl">If the regional model isn't improving prediction</span>
+      Don't move on to Bayesian updating. Go back — check the covariates, the depth harmonization, the CV fold structure, the sample size — and find out why before step 9.
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Prior metrics vs. RF metrics, side by side <span class="flabel">R/step08_compare_prior_vs_model.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step08_compare_prior_vs_model.R</div>
+        <pre><code><span class="fn">compare_prior_vs_model</span> &lt;- function(prior_metrics, rf_metrics) {
+  data.frame(
+    model = c("Prior", "Regional RF"),
+    rmse  = c(prior_metrics$rmse, rf_metrics$rmse),
+    mae   = c(prior_metrics$mae,  rf_metrics$mae),
+    bias  = c(prior_metrics$bias, rf_metrics$bias)
+  )
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_08_compare_prior_vs_model.R</div>
+        <pre><code>source(<span class="cm">"R/step08_compare_prior_vs_model.R"</span>)
+prior_metrics &lt;- readRDS(<span class="cm">"outputs/prior_metrics.rds"</span>)  <span class="cm"># from step 4</span>
+rf_metrics    &lt;- readRDS(<span class="cm">"outputs/rf_metrics.rds"</span>)     <span class="cm"># from step 7</span>
+
+comparison_table &lt;- <span class="fn">compare_prior_vs_model</span>(prior_metrics, rf_metrics)
+write.csv(comparison_table, <span class="cm">"outputs/prior_vs_rf_comparison.csv"</span>, row.names = FALSE)
+print(comparison_table)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-9">
+    <div class="step-head"><span class="step-num">STEP 09</span><h2>Bayesian update</h2></div>
+    <p class="step-question">Given what we knew before and what the regional evidence tells us, what should our updated estimate be?</p>
+    <p>The first genuinely Bayesian step. For Version 1: the Normal–Normal update — precision-weighted averaging of a prior and a piece of evidence, each described by a mean and an SD.</p>
+
+    <div class="formula-card">
+      <div class="label">Posterior mean</div>
+      <span class="formula">μ<sub>post</sub> = <span class="frac"><span class="num">μ<sub>p</sub>/σ<sub>p</sub>² &nbsp;+&nbsp; μ<sub>r</sub>/σ<sub>r</sub>²</span><span class="den">1/σ<sub>p</sub>² &nbsp;+&nbsp; 1/σ<sub>r</sub>²</span></span></span>
+    </div>
+    <div class="formula-card">
+      <div class="label">Posterior variance</div>
+      <span class="formula">σ<sub>post</sub>² = <span class="frac"><span class="num">1</span><span class="den">1/σ<sub>p</sub>² &nbsp;+&nbsp; 1/σ<sub>r</sub>²</span></span></span>
+      <span class="cap">Each source contributes in proportion to its <em>precision</em> (1/variance) — the more confident source pulls the posterior harder toward itself.</span>
+    </div>
+
+    <div class="penpaper">
+      <p>Prior: 150 ± 30. Regional estimate: 170 ± 20.</p>
+      <div class="worked">prior precision    = 1 / 30² = 0.001111
+regional precision = 1 / 20² = 0.002500
+
+μ_post = (150 × 0.001111 + 170 × 0.002500) / (0.001111 + 0.002500)
+       = (0.1667 + 0.4250) / 0.003611
+       = <span class="res">≈ 164</span>
+
+σ_post² = 1 / 0.003611 = 276.9
+σ_post  = √276.9 = <span class="res">≈ 16.6</span></div>
+      <div class="tbl-wrap" style="margin-top:14px">
+      <table class="result">
+        <tbody>
+          <tr><td>Prior</td><td>150 ± 30</td></tr>
+          <tr><td>Regional</td><td>170 ± 20</td></tr>
+          <tr><td><strong>Posterior</strong></td><td><strong>164 ± 17</strong></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p style="margin-top:10px">The posterior sits closer to the regional estimate than to the prior, because the regional evidence is more precise (smaller SD).</p>
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> The scalar update, checked against the worked example <span class="flabel">R/step09_bayesian_update.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step09_bayesian_update.R</div>
+        <pre><code><span class="fn">bayesian_update_normal</span> &lt;- function(prior_mean, prior_sd, evidence_mean, evidence_sd) {
+  prior_precision     &lt;- 1 / prior_sd^2
+  evidence_precision  &lt;- 1 / evidence_sd^2
+  posterior_precision &lt;- prior_precision + evidence_precision
+  posterior_variance  &lt;- 1 / posterior_precision
+
+  posterior_mean &lt;- posterior_variance *
+    (prior_mean * prior_precision + evidence_mean * evidence_precision)
+
+  list(
+    posterior_mean = posterior_mean,
+    posterior_sd   = sqrt(posterior_variance)
+  )
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_09_bayesian_update.R</div>
+        <pre><code>source(<span class="cm">"R/step09_bayesian_update.R"</span>)
+
+posterior &lt;- <span class="fn">bayesian_update_normal</span>(
+  prior_mean = 150, prior_sd = 30,
+  evidence_mean = 170, evidence_sd = 20
+)
+print(posterior)
+
+<span class="cm"># check against the worked example: 164 +/- 17</span>
+stopifnot(round(posterior$posterior_mean) == 164)
+stopifnot(round(posterior$posterior_sd)   == 17)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-10">
+    <div class="step-head"><span class="step-num">STEP 10</span><h2>Apply the update spatially</h2></div>
+    <p class="step-question">The same equations, at every pixel.</p>
+    <p>For every 10-m cell: prior mean + prior SD, regional prediction + regional uncertainty, in → posterior mean + posterior SD, out. Nothing new mathematically — the win here is that <span class="mono">terra</span> raster algebra runs the exact scalar equations from Step 9 across an entire grid at once.</p>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> The same formula, as raster algebra <span class="flabel">R/step10_bayesian_update_raster.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step10_bayesian_update_raster.R</div>
+        <pre><code><span class="fn">bayesian_update_raster</span> &lt;- function(prior_mean, prior_sd, regional_mean, regional_sd) {
+  library(terra)
+
+  posterior_variance &lt;- 1 / (1 / prior_sd^2 + 1 / regional_sd^2)
+  posterior_sd        &lt;- sqrt(posterior_variance)
+  posterior_mean       &lt;- posterior_variance *
+    (prior_mean / prior_sd^2 + regional_mean / regional_sd^2)
+
+  c(posterior_mean = posterior_mean, posterior_sd = posterior_sd)
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_10_bayesian_update_raster.R</div>
+        <pre><code>source(<span class="cm">"R/step10_bayesian_update_raster.R"</span>)
+library(terra)
+
+prior_mean    &lt;- rast(<span class="cm">"data/prior_mean_10m.tif"</span>)
+prior_sd      &lt;- rast(<span class="cm">"data/prior_sd_10m.tif"</span>)
+regional_mean &lt;- rast(<span class="cm">"outputs/regional_prediction_10m.tif"</span>)
+regional_sd   &lt;- rast(<span class="cm">"outputs/regional_prediction_sd_10m.tif"</span>)
+
+posterior &lt;- <span class="fn">bayesian_update_raster</span>(prior_mean, prior_sd, regional_mean, regional_sd)
+writeRaster(posterior, <span class="cm">"outputs/posterior_10m.tif"</span>, overwrite = TRUE)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-11">
+    <div class="step-head"><span class="step-num">STEP 11</span><h2>Create the posterior map</h2></div>
+    <p class="step-question">What do we ship?</p>
+    <p><span class="mono">posterior_mean_10m.tif</span>, <span class="mono">posterior_sd_10m.tif</span>, <span class="mono">posterior_cv_10m.tif</span> — and, if useful, 95% bounds.</p>
+
+    <div class="callout note">
+      <span class="lbl display">Remember</span>
+      The 10-m map contains genuine inferred fine-scale variation — it is <strong>not</strong> a resampled version of the 250-m prior. The high-resolution detail comes from the regional covariates and ground observations, not from the coarse prior.
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Export the posterior products <span class="flabel">R/step11_export_posterior.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step11_export_posterior.R</div>
+        <pre><code><span class="fn">export_posterior_products</span> &lt;- function(posterior_mean, posterior_sd, outdir) {
+  library(terra)
+  dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
+
+  posterior_cv &lt;- posterior_sd / posterior_mean
+  lower95 &lt;- posterior_mean - 1.96 * posterior_sd
+  upper95 &lt;- posterior_mean + 1.96 * posterior_sd
+
+  writeRaster(posterior_mean, file.path(outdir, "posterior_mean_10m.tif"),    overwrite = TRUE)
+  writeRaster(posterior_sd,   file.path(outdir, "posterior_sd_10m.tif"),      overwrite = TRUE)
+  writeRaster(posterior_cv,   file.path(outdir, "posterior_cv_10m.tif"),      overwrite = TRUE)
+  writeRaster(lower95,        file.path(outdir, "posterior_lower95_10m.tif"), overwrite = TRUE)
+  writeRaster(upper95,        file.path(outdir, "posterior_upper95_10m.tif"), overwrite = TRUE)
+
+  invisible(list(mean = posterior_mean, sd = posterior_sd, cv = posterior_cv))
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_11_export_posterior.R</div>
+        <pre><code>source(<span class="cm">"R/step11_export_posterior.R"</span>)
+library(terra)
+
+posterior &lt;- rast(<span class="cm">"outputs/posterior_10m.tif"</span>)
+<span class="fn">export_posterior_products</span>(
+  posterior$posterior_mean, posterior$posterior_sd, <span class="cm">"outputs/posterior"</span>
+)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-12">
+    <div class="step-head"><span class="step-num">STEP 12</span><h2>Check the change of spatial support</h2></div>
+    <p class="step-question">Our simple safeguard against over-interpreting the 10-m map.</p>
+    <p>Aggregate the posterior back to 250 m and compare it to the original 250-m prior. Not a requirement that they match — a diagnostic.</p>
+
+    <div class="formula-card">
+      <div class="label">Aggregating 625 10-m cells → one 250-m cell</div>
+      <span class="formula">P̄<sub>250</sub> = <span class="frac"><span class="num">1</span><span class="den">625</span></span> Σᵢ₌₁<sup>625</sup> Pᵢ</span>
+    </div>
+
+    <div class="tbl-wrap">
+    <table class="result">
+      <caption>Example</caption>
+      <tbody>
+        <tr><td>Prior 250 m</td><td>150 Mg C/ha</td></tr>
+        <tr><td>Posterior → 250 m</td><td>158 Mg C/ha</td></tr>
+        <tr><td><strong>Difference</strong></td><td><strong>+8 Mg C/ha</strong></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="callout warn">
+      <span class="lbl">A large difference is a question, not a failure</span>
+      "Why did the regional evidence move the estimate this much?" — this is the practical, incremental response to the change-of-support problem, short of building a full geostatistical solution right away.
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Aggregate posterior to 250 m and diff against the prior <span class="flabel">R/step12_check_change_of_support.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step12_check_change_of_support.R</div>
+        <pre><code><span class="fn">check_change_of_support</span> &lt;- function(posterior_mean_fine, prior_mean_coarse) {
+  library(terra)
+  posterior_aggregated &lt;- resample(posterior_mean_fine, prior_mean_coarse, method = "average")
+  diff &lt;- posterior_aggregated - prior_mean_coarse
+
+  list(
+    posterior_aggregated = posterior_aggregated,
+    difference      = diff,
+    mean_difference = as.numeric(global(diff, "mean", na.rm = TRUE))
+  )
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_12_check_change_of_support.R</div>
+        <pre><code>source(<span class="cm">"R/step12_check_change_of_support.R"</span>)
+library(terra)
+
+posterior_mean &lt;- rast(<span class="cm">"outputs/posterior/posterior_mean_10m.tif"</span>)
+prior_mean_250 &lt;- rast(<span class="cm">"data/prior_mean.tif"</span>)
+
+support_check &lt;- <span class="fn">check_change_of_support</span>(posterior_mean, prior_mean_250)
+print(support_check$mean_difference)
+writeRaster(support_check$difference, <span class="cm">"outputs/posterior_minus_prior_250m.tif"</span>, overwrite = TRUE)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-13">
+    <div class="step-head"><span class="step-num">STEP 13</span><h2>Compare the maps</h2></div>
+    <p class="step-question">What did we gain?</p>
+    <div class="formula-card">
+      <div class="label">A — change in estimate</div>
+      <span class="formula">Δμ = μ<sub>post</sub> − μ<sub>prior</sub></span>
+      <span class="cap">Where did our estimate change?</span>
+    </div>
+    <div class="formula-card">
+      <div class="label">B — change in uncertainty</div>
+      <span class="formula">Reduction = 1 − (SD<sub>post</sub> / SD<sub>prior</sub>)</span>
+      <span class="cap">Where did our uncertainty decrease?</span>
+    </div>
+    <div class="penpaper">
+      <div class="worked">SD_prior = 30
+SD_post  = 16.6
+Reduction = 1 − (16.6 / 30) = <span class="res">44.7%</span></div>
+    </div>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Delta-mean and uncertainty-reduction rasters <span class="flabel">R/step13_compare_maps.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step13_compare_maps.R</div>
+        <pre><code><span class="fn">compare_prior_posterior_maps</span> &lt;- function(prior_mean, posterior_mean, prior_sd, posterior_sd) {
+  delta_mu &lt;- posterior_mean - prior_mean
+  uncertainty_reduction &lt;- 1 - (posterior_sd / prior_sd)
+  c(delta_mu = delta_mu, uncertainty_reduction = uncertainty_reduction)
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_13_compare_maps.R</div>
+        <pre><code>source(<span class="cm">"R/step13_compare_maps.R"</span>)
+library(terra)
+
+prior_mean   &lt;- rast(<span class="cm">"data/prior_mean_10m.tif"</span>)
+prior_sd     &lt;- rast(<span class="cm">"data/prior_sd_10m.tif"</span>)
+posterior    &lt;- rast(<span class="cm">"outputs/posterior/posterior_mean_10m.tif"</span>)
+posterior_sd &lt;- rast(<span class="cm">"outputs/posterior/posterior_sd_10m.tif"</span>)
+
+change &lt;- <span class="fn">compare_prior_posterior_maps</span>(prior_mean, posterior, prior_sd, posterior_sd)
+writeRaster(change, <span class="cm">"outputs/prior_posterior_change.tif"</span>, overwrite = TRUE)
+
+<span class="cm"># check against the worked example: 1 - 16.6/30 ~= 44.7%</span>
+stopifnot(round((1 - 16.6 / 30) * 100, 1) == 44.7)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-14">
+    <div class="step-head"><span class="step-num">STEP 14</span><h2>Don't implement the advanced Bayesian model yet</h2></div>
+    <p class="step-question">Not now — but what does "later" actually look like?</p>
+    <p>The Normal-Normal update in Steps 9–10 is enough to demonstrate the concept and ship a defensible Version 1. A future <strong>hierarchical spatial Bayesian model</strong> — <span class="mono">brms</span>, <span class="mono">INLA</span>, or <span class="mono">inlabru</span> — would do something genuinely more powerful: model spatial autocorrelation, observation error, prior uncertainty, covariates, spatial random effects, prediction uncertainty, and different spatial supports all at once, rather than pixel-by-pixel.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 560 300" role="img" aria-label="Version 2 concept: a national prior and a spatial latent field feed into field observations and remote sensing, which combine into a posterior producing a mean prediction and an uncertainty estimate.">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="-apple-system,sans-serif" font-size="12.5" fill="currentColor">
+          <rect x="180" y="10" width="200" height="34" rx="4" fill="none" stroke="currentColor" opacity="0.6"/>
+          <text x="280" y="32" text-anchor="middle">National prior</text>
+          <line x1="280" y1="44" x2="280" y2="72" stroke="currentColor" opacity="0.6" marker-end="url(#arrow2)"/>
+
+          <rect x="140" y="74" width="280" height="34" rx="4" fill="none" stroke="var(--ochre)" stroke-width="1.4"/>
+          <text x="280" y="96" text-anchor="middle" fill="var(--ochre)">Spatial latent field</text>
+
+          <line x1="220" y1="108" x2="140" y2="140" stroke="currentColor" opacity="0.6" marker-end="url(#arrow2)"/>
+          <line x1="340" y1="108" x2="420" y2="140" stroke="currentColor" opacity="0.6" marker-end="url(#arrow2)"/>
+
+          <rect x="20" y="142" width="180" height="34" rx="4" fill="none" stroke="currentColor" opacity="0.6"/>
+          <text x="110" y="164" text-anchor="middle">Field observations</text>
+
+          <rect x="360" y="142" width="180" height="34" rx="4" fill="none" stroke="currentColor" opacity="0.6"/>
+          <text x="450" y="164" text-anchor="middle">Remote sensing</text>
+
+          <line x1="140" y1="176" x2="255" y2="204" stroke="currentColor" opacity="0.6" marker-end="url(#arrow2)"/>
+          <line x1="420" y1="176" x2="305" y2="204" stroke="currentColor" opacity="0.6" marker-end="url(#arrow2)"/>
+
+          <rect x="200" y="206" width="160" height="34" rx="4" fill="none" stroke="var(--moss)" stroke-width="1.4"/>
+          <text x="280" y="228" text-anchor="middle" fill="var(--moss-strong)">Posterior</text>
+
+          <line x1="245" y1="240" x2="160" y2="266" stroke="currentColor" opacity="0.6" marker-end="url(#arrow2)"/>
+          <line x1="315" y1="240" x2="400" y2="266" stroke="currentColor" opacity="0.6" marker-end="url(#arrow2)"/>
+
+          <rect x="60" y="266" width="200" height="30" rx="4" fill="none" stroke="currentColor" opacity="0.6"/>
+          <text x="160" y="286" text-anchor="middle" font-size="12">Mean prediction</text>
+
+          <rect x="300" y="266" width="200" height="30" rx="4" fill="none" stroke="currentColor" opacity="0.6"/>
+          <text x="400" y="286" text-anchor="middle" font-size="12">Uncertainty</text>
+        </g>
+      </svg>
+      <figcaption>Version 2, conceptually: everything shares one spatial latent field instead of being updated pixel-by-pixel. Substantially more powerful, and substantially more complicated — build it only once Version 1 has proven the concept.</figcaption>
+    </figure>
+    <p><strong>Version 1 = simple Bayesian updating. Version 2 = spatial/hierarchical Bayesian model, if the project warrants it.</strong> No code in this step — it's a roadmap marker, not a task.</p>
+  </section>
+
+  <section class="step" id="step-15">
+    <div class="step-head"><span class="step-num">STEP 15</span><h2>Management precision</h2></div>
+    <p class="step-question">Not "is the model statistically perfect?" — "is the map good enough for the management decision?"</p>
+    <div class="formula-card">
+      <div class="label">Coefficient of variation</div>
+      <span class="formula">CV<sub>post</sub> = SD<sub>post</sub> / μ<sub>post</sub></span>
+    </div>
+    <div class="penpaper">
+      <div class="worked">CV = 16.6 / 164 = <span class="res">10.1%</span></div>
+      <div class="tbl-wrap" style="margin-top:12px">
+      <table class="result">
+        <tbody>
+          <tr><td>Posterior CV</td><td>10.1%</td></tr>
+          <tr><td>Management limit</td><td>20%</td></tr>
+          <tr><td><strong>Result</strong></td><td><span class="pill pass">PASS</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+    <p>If it fails: <span class="mono">CV &gt; threshold → identify high-uncertainty areas → collect more field data → update model → recalculate posterior</span> — which is exactly Step 16.</p>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> CV raster + pass/fail against a threshold <span class="flabel">R/step15_management_precision.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step15_management_precision.R</div>
+        <pre><code><span class="fn">test_management_precision</span> &lt;- function(posterior_mean, posterior_sd, cv_threshold = 0.20) {
+  cv &lt;- posterior_sd / posterior_mean
+  list(
+    cv     = cv,
+    passes = cv &lt; cv_threshold
+  )
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_15_management_precision.R</div>
+        <pre><code>source(<span class="cm">"R/step15_management_precision.R"</span>)
+library(terra)
+
+posterior_mean &lt;- rast(<span class="cm">"outputs/posterior/posterior_mean_10m.tif"</span>)
+posterior_sd   &lt;- rast(<span class="cm">"outputs/posterior/posterior_sd_10m.tif"</span>)
+
+precision_check &lt;- <span class="fn">test_management_precision</span>(posterior_mean, posterior_sd, cv_threshold = 0.20)
+writeRaster(precision_check$cv,     <span class="cm">"outputs/posterior_cv_check.tif"</span>,     overwrite = TRUE)
+writeRaster(precision_check$passes, <span class="cm">"outputs/posterior_meets_target.tif"</span>, overwrite = TRUE)
+
+<span class="cm"># scalar check against the worked example: 16.6 / 164 ~= 10.1%</span>
+stopifnot(round(16.6 / 164 * 100, 1) == 10.1)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="step-16">
+    <div class="step-head"><span class="step-num">STEP 16</span><h2>Iterative sampling</h2></div>
+    <p class="step-question">Where should the next field visit go?</p>
+    <p>Preferentially: high posterior uncertainty, high standardized residuals, poor model performance, strong unexplained spatial structure, high management importance.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 600 380" role="img" aria-label="Iterative sampling loop: prior, ground data, regional model, posterior, and uncertainty map feed a decision. If it meets the target the map is used. If not, high-value areas are sampled again and the posterior is updated, looping back.">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="-apple-system,sans-serif" font-size="12.5" fill="currentColor">
+          <rect x="220" y="8"  width="160" height="30" rx="4" fill="none" stroke="currentColor" opacity="0.6"/><text x="300" y="28" text-anchor="middle">Prior</text>
+          <line x1="300" y1="38" x2="300" y2="58" stroke="currentColor" opacity="0.6" marker-end="url(#arrow3)"/>
+          <rect x="220" y="60" width="160" height="30" rx="4" fill="none" stroke="currentColor" opacity="0.6"/><text x="300" y="80" text-anchor="middle">Ground data</text>
+          <line x1="300" y1="90" x2="300" y2="110" stroke="currentColor" opacity="0.6" marker-end="url(#arrow3)"/>
+          <rect x="220" y="112" width="160" height="30" rx="4" fill="none" stroke="currentColor" opacity="0.6"/><text x="300" y="132" text-anchor="middle">Regional model</text>
+          <line x1="300" y1="142" x2="300" y2="162" stroke="currentColor" opacity="0.6" marker-end="url(#arrow3)"/>
+          <rect x="220" y="164" width="160" height="30" rx="4" fill="none" stroke="var(--moss)" stroke-width="1.4"/><text x="300" y="184" text-anchor="middle" fill="var(--moss-strong)">Posterior</text>
+          <line x1="300" y1="194" x2="300" y2="214" stroke="currentColor" opacity="0.6" marker-end="url(#arrow3)"/>
+          <rect x="205" y="216" width="190" height="30" rx="4" fill="none" stroke="currentColor" opacity="0.6"/><text x="300" y="236" text-anchor="middle">Uncertainty map</text>
+          <line x1="300" y1="246" x2="300" y2="266" stroke="currentColor" opacity="0.6" marker-end="url(#arrow3)"/>
+
+          <polygon points="300,268 380,306 300,344 220,306" fill="none" stroke="var(--ochre)" stroke-width="1.4"/>
+          <text x="300" y="310" text-anchor="middle" fill="var(--ochre)" font-size="11.5">Meets target?</text>
+
+          <line x1="380" y1="306" x2="470" y2="306" stroke="currentColor" opacity="0.6" marker-end="url(#arrow3)"/>
+          <text x="415" y="298" text-anchor="middle" font-size="11" fill="var(--moss-strong)">yes</text>
+          <rect x="470" y="290" width="110" height="32" rx="4" fill="none" stroke="var(--moss)" stroke-width="1.4"/>
+          <text x="525" y="311" text-anchor="middle" fill="var(--moss-strong)">Use map</text>
+
+          <line x1="220" y1="306" x2="60" y2="306" stroke="currentColor" opacity="0.6" marker-end="url(#arrow3)"/>
+          <text x="140" y="298" text-anchor="middle" font-size="11" fill="var(--clay)">no</text>
+          <rect x="10" y="290" width="150" height="32" rx="4" fill="none" stroke="var(--clay)" stroke-width="1.4"/>
+          <text x="85" y="311" text-anchor="middle" fill="var(--clay)" font-size="11.5">Sample high-value areas</text>
+
+          <path d="M85,290 C85,250 150,164 218,166" fill="none" stroke="var(--clay)" opacity="0.75" marker-end="url(#arrow3)"/>
+          <text x="120" y="200" font-size="11" fill="var(--clay)">update posterior</text>
+        </g>
+      </svg>
+      <figcaption>The loop closes back into "Regional model": new samples get folded in and the posterior — and its CV — get recalculated.</figcaption>
+    </figure>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> Rank cells for the next sampling round <span class="flabel">R/step16_propose_sample_sites.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>R/step16_propose_sample_sites.R</div>
+        <pre><code><span class="cm"># Start simple: rank candidate cells by posterior SD (+ optional |z-residual|),</span>
+<span class="cm"># return the coordinates of the top n. This is the seed for a proper</span>
+<span class="cm"># space-filling / value-of-information design later.</span>
+<span class="fn">propose_next_sample_sites</span> &lt;- function(posterior_sd, z_residual = NULL, n = 10) {
+  library(terra)
+  score &lt;- posterior_sd
+  if (!is.null(z_residual)) {
+    score &lt;- score + abs(resample(z_residual, posterior_sd))
+  }
+  top_cells &lt;- which(rank(-values(score), na.last = "keep") &lt;= n)
+  xyFromCell(score, top_cells)
+}</code></pre>
+        <div class="code-file"><span class="dot"></span>scripts/run_16_propose_sample_sites.R</div>
+        <pre><code>source(<span class="cm">"R/step16_propose_sample_sites.R"</span>)
+library(terra)
+
+posterior_sd    &lt;- rast(<span class="cm">"outputs/posterior/posterior_sd_10m.tif"</span>)
+candidate_sites &lt;- <span class="fn">propose_next_sample_sites</span>(posterior_sd, n = 10)
+
+write.csv(candidate_sites, <span class="cm">"outputs/proposed_sample_sites.csv"</span>, row.names = FALSE)</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section class="step" id="architecture">
+    <div class="step-head"><h2>Recommended software architecture</h2></div>
+    <p>Deliberately simple for the first cut: Earth Engine feeds covariates in, R does everything statistical, <span class="mono">terra</span> writes the rasters out.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 560 420" role="img" aria-label="Architecture: Google Earth Engine produces remote sensing covariates that flow into R/RStudio. Ground data, prior data, and covariates converge into tidymodels with a ranger random forest engine, producing a regional prediction. That combines with a simple Bayesian update, processed through terra, to produce posterior GeoTIFFs.">
+        <defs>
+          <marker id="arrow4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="-apple-system,sans-serif" font-size="12.5" fill="currentColor">
+          <rect x="150" y="8" width="260" height="34" rx="4" fill="none" stroke="currentColor" opacity="0.6"/>
+          <text x="280" y="30" text-anchor="middle">Google Earth Engine</text>
+          <line x1="280" y1="42" x2="280" y2="64" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+          <text x="280" y="58" text-anchor="middle" font-size="11" fill="var(--ink-faint)">remote sensing / covariates</text>
+
+          <rect x="150" y="66" width="260" height="34" rx="4" fill="none" stroke="var(--moss)" stroke-width="1.4"/>
+          <text x="280" y="88" text-anchor="middle" fill="var(--moss-strong)">R / RStudio</text>
+
+          <line x1="200" y1="100" x2="100" y2="132" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+          <line x1="280" y1="100" x2="280" y2="132" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+          <line x1="360" y1="100" x2="460" y2="132" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+
+          <rect x="20"  y="134" width="160" height="32" rx="4" fill="none" stroke="currentColor" opacity="0.6"/><text x="100" y="154" text-anchor="middle" font-size="12">Ground data</text>
+          <rect x="200" y="134" width="160" height="32" rx="4" fill="none" stroke="currentColor" opacity="0.6"/><text x="280" y="154" text-anchor="middle" font-size="12">Prior data</text>
+          <rect x="380" y="134" width="160" height="32" rx="4" fill="none" stroke="currentColor" opacity="0.6"/><text x="460" y="154" text-anchor="middle" font-size="12">Covariates</text>
+
+          <line x1="100" y1="166" x2="270" y2="196" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+          <line x1="280" y1="166" x2="280" y2="196" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+          <line x1="460" y1="166" x2="290" y2="196" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+
+          <rect x="180" y="198" width="200" height="32" rx="4" fill="none" stroke="var(--ochre)" stroke-width="1.4"/>
+          <text x="280" y="219" text-anchor="middle" fill="var(--ochre)">tidymodels</text>
+          <line x1="280" y1="230" x2="280" y2="250" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+          <rect x="180" y="252" width="200" height="30" rx="4" fill="none" stroke="var(--ochre)" stroke-width="1.4"/>
+          <text x="280" y="272" text-anchor="middle" fill="var(--ochre)" font-size="12">ranger RF</text>
+          <line x1="280" y1="282" x2="280" y2="302" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+
+          <rect x="150" y="304" width="260" height="30" rx="4" fill="none" stroke="currentColor" opacity="0.6"/>
+          <text x="280" y="324" text-anchor="middle" font-size="12">Regional prediction</text>
+          <line x1="280" y1="334" x2="280" y2="354" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+
+          <rect x="120" y="356" width="320" height="30" rx="4" fill="none" stroke="var(--moss)" stroke-width="1.4"/>
+          <text x="280" y="376" text-anchor="middle" fill="var(--moss-strong)" font-size="12">Simple Bayesian update</text>
+          <line x1="280" y1="386" x2="280" y2="406" stroke="currentColor" opacity="0.6" marker-end="url(#arrow4)"/>
+        </g>
+        <text x="280" y="414" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12" fill="currentColor">terra → posterior GeoTIFFs</text>
+      </svg>
+      <figcaption>GEE stays a data-ingestion bridge (via <span class="mono">rgee</span>), not the modelling engine — the statistical workflow never depends on it being available.</figcaption>
+    </figure>
+
+    <h3 class="sub-h" style="margin-top:40px">Core packages</h3>
+    <div class="pkg-grid">
+      <div class="grp"><h4>Spatial data</h4><code>terra</code><code>sf</code></div>
+      <div class="grp"><h4>Soil</h4><code>soilassessment</code><code>aqp</code></div>
+      <div class="grp"><h4>Modelling</h4><code>tidymodels</code><code>ranger</code></div>
+      <div class="grp"><h4>Spatial diagnostics</h4><code>spdep</code><code>gstat</code></div>
+      <div class="grp"><h4>Earth Engine</h4><code>rgee</code></div>
+      <div class="grp later"><h4>Advanced Bayesian — later</h4><code>brms</code><code>INLA</code><code>inlabru</code></div>
+    </div>
+  </section>
+
+  <section class="step" id="deliverables">
+    <div class="step-head"><h2>The first deliverable</h2></div>
+    <p>Don't build the whole system at once. Produce a proof-of-concept on 5–20 field observations and a small AOI, and deliver these six things:</p>
+
+    <div class="deliverables">
+      <div class="d"><div class="dn">01</div><div><h4>Data inventory</h4><div class="file">data_inventory.csv</div><p>dataset · mean_estimate · uncertainty · data_type · spatial_support · source</p></div></div>
+      <div class="d"><div class="dn">02</div><div><h4>Ground-data spreadsheet</h4><div class="file">soil_carbon_calculation.xlsx</div><p>Raw measurements → carbon stock → depth harmonization → final response variable, every conversion visible.</p></div></div>
+      <div class="d"><div class="dn">03</div><div><h4>Prior comparison</h4><div class="file">prior_vs_observed.csv</div><p>plot_id · observed · prior · prior_sd · residual · standardized_residual</p></div></div>
+      <div class="d"><div class="dn">04</div><div><h4>Regional model</h4><div class="file">tidymodels workflow</div><p>recipe → ranger → 5-fold CV → RMSE / MAE / R²</p></div></div>
+      <div class="d"><div class="dn">05</div><div><h4>First posterior</h4><div class="file">posterior_mean.tif · posterior_sd.tif · posterior_cv.tif</div><p>Three rasters, produced by the Step 9–11 functions.</p></div></div>
+      <div class="d"><div class="dn">06</div><div><h4>QA / QC</h4><div class="file">qaqc_summary.csv</div><p>Prior mean &amp; pixel SD · observed mean &amp; SD · prior RMSE · regional-model RMSE · posterior mean/SD/CV · posterior aggregated to prior resolution · prior→posterior change · prior→posterior uncertainty reduction.</p></div></div>
+    </div>
+
+    <div class="callout note">
+      <span class="lbl display">The one non-negotiable</span>
+      Don't hide Version 1 behind packages. Pick one observation and one pixel, and hand-calculate its residual, RMSE contribution, standardized residual, posterior mean, posterior SD, and posterior CV. The R code in every dropdown above should reproduce those exact numbers before the workflow gets scaled to the full AOI with <span class="mono">terra</span>, <span class="mono">rgee</span>, and <span class="mono">tidymodels</span>.
+    </div>
+  </section>
+
+  <section class="step" id="targets">
+    <div class="step-head"><h2>From scripts to a <span class="mono" style="font-size:0.85em">targets</span> pipeline</h2></div>
+    <p class="step-question">Every step above is deliberately one function in <span class="mono">R/</span>, run once by one script in <span class="mono">scripts/</span>. That's not a limitation — it's the interface <span class="mono">targets</span> expects.</p>
+    <p>Once every step's script runs cleanly stand-alone, wiring them into a pipeline is mechanical: <span class="mono">tar_source("R")</span> loads every function, and each pipeline node becomes one <span class="mono">tar_target()</span> call — the exact function call that used to live in <span class="mono">scripts/run_XX_*.R</span>, now with its inputs and outputs tracked so <span class="mono">targets</span> only reruns what actually changed.</p>
+
+    <details class="code-drop">
+      <summary><span class="chev">▸</span><span class="rtag">R</span> The whole pipeline, as targets <span class="flabel">_targets.R</span></summary>
+      <div class="code-panel">
+        <div class="code-file"><span class="dot"></span>_targets.R</div>
+        <pre><code>library(targets)
+tar_source(<span class="cm">"R"</span>)   <span class="cm"># loads every step0X_*.R function</span>
+
+list(
+  tar_target(aoi_file,         <span class="cm">"data/aoi.gpkg"</span>,        format = "file"),
+  tar_target(prior_mean_file,  <span class="cm">"data/prior_mean.tif"</span>,  format = "file"),
+  tar_target(prior_sd_file,    <span class="cm">"data/prior_sd.tif"</span>,    format = "file"),
+  tar_target(field_plots_file, <span class="cm">"data/field_plots.gpkg"</span>, format = "file"),
+
+  <span class="cm"># step 0</span>
+  tar_target(data_inventory, <span class="fn">build_data_inventory</span>()),
+
+  <span class="cm"># step 1</span>
+  tar_target(prior_summary, <span class="fn">characterize_prior</span>(
+    rast(prior_mean_file), rast(prior_sd_file), vect(aoi_file)
+  )),
+
+  <span class="cm"># step 2</span>
+  tar_target(harmonized_cores, <span class="fn">harmonize_core_depths</span>(
+    read.csv("data/soil_cores_raw.csv")
+  )),
+
+  <span class="cm"># step 3</span>
+  tar_target(modelling_data, <span class="fn">extract_prior_covariates</span>(
+    vect(field_plots_file), rast(prior_mean_file), rast(prior_sd_file), covariate_stack
+  )),
+
+  <span class="cm"># step 4</span>
+  tar_target(prior_comparison, <span class="fn">compare_prior_observed</span>(modelling_data)),
+
+  <span class="cm"># steps 6-7</span>
+  tar_target(rf_workflow, <span class="fn">build_rf_workflow</span>(
+    observed ~ NDVI + elevation + slope + prior, prior_comparison$field
+  )),
+  tar_target(rf_cv, <span class="fn">validate_rf_workflow</span>(rf_workflow, prior_comparison$field)),
+
+  <span class="cm"># step 8</span>
+  tar_target(model_comparison, <span class="fn">compare_prior_vs_model</span>(prior_comparison, rf_cv)),
+
+  <span class="cm"># steps 9-10</span>
+  tar_target(posterior, <span class="fn">bayesian_update_raster</span>(
+    rast(prior_mean_file), rast(prior_sd_file), regional_mean, regional_sd
+  )),
+
+  <span class="cm"># step 11</span>
+  tar_target(posterior_products, <span class="fn">export_posterior_products</span>(
+    posterior["posterior_mean"], posterior["posterior_sd"], "outputs/posterior"
+  )),
+
+  <span class="cm"># step 12</span>
+  tar_target(support_check, <span class="fn">check_change_of_support</span>(
+    posterior["posterior_mean"], rast(prior_mean_file)
+  )),
+
+  <span class="cm"># step 15</span>
+  tar_target(precision_check, <span class="fn">test_management_precision</span>(
+    posterior["posterior_mean"], posterior["posterior_sd"], cv_threshold = 0.20
+  ))
+)</code></pre>
+      </div>
+    </details>
+
+    <div class="callout note">
+      <span class="lbl display">Why this order of operations matters</span>
+      Write and hand-verify the function first, run it once from a disposable script second, wire it into <span class="mono">_targets.R</span> third. Debugging a broken pipeline node inside <span class="mono">tar_make()</span> is much harder than debugging a plain function call at the console — the scripts in <span class="mono">scripts/</span> stay useful afterward as the fastest way to test one step in isolation.
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<footer>
+  <p>Regional Map Updating Framework — Version 1. Start with the spreadsheet, confirm the numbers by hand, then let terra, tidymodels, and targets carry the same arithmetic to the full AOI.</p>
+</footer>
+
+<a href="#main" class="backtop" id="backtop" aria-label="Back to top">↑</a>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var sections = links
+    .map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); })
+    .filter(Boolean);
+
+  if ('IntersectionObserver' in window && sections.length){
+    var byId = {};
+    links.forEach(function(a){ byId[a.getAttribute('href').slice(1)] = a; });
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var link = byId[entry.target.id];
+        if (!link) return;
+        if (entry.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    sections.forEach(function(s){ io.observe(s); });
+  }
+
+  var backtop = document.getElementById('backtop');
+  window.addEventListener('scroll', function(){
+    backtop.classList.toggle('show', window.scrollY > 700);
+  }, { passive: true });
+})();
+</script>
