@@ -13,6 +13,7 @@ _targets.yaml
 data/*
 outputs/*
 !data/.gitkeep
+!data/README.md
 !outputs/.gitkeep
 
 # renv, if/when it gets added
