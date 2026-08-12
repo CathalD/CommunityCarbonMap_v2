@@ -1,0 +1,36 @@
+Workshop — Digital Data Sheet,
+"Companion to WWF-Canada, Measuring Carbon in Coastal Sediments (2026), and Part 4 of the Blue Carbon Eelgrass Workshop.",
+,
+,
+HOW TO USE THIS WORKBOOK,
+Sheet 2 — Plot & Core Log,"One row per CORE. Enter plot/core notes, the corer diameter, and the two insertion depths. The compaction factor calculates itself."
+Sheet 3 — Sample Data,"One row per SLICE. Enter the field columns before you leave site, then add the lab columns when results come back. Everything else calculates."
+Sheet 4 — Core Summary,Per-core totals. Fully automatic — nothing to type here.
+,
+COLOUR KEY,
+Yellow fill / blue text,Data from the field (align with the field data sheet)
+Grey fill / black text,Calculated. Do not type over these — you will break the column.
+Green text,Pulled from another sheet in this workbook.
+Pink fill,Worked example row. Delete it before entering your own data.
+,
+THE FOUR BANDS ON SHEET 3,
+1. Data from the field,Copy directly from the field data
+2. Calculated before the lab,"Depth interval, compaction-corrected depths, and sample volume. You need the volume to hand to the lab, or to compute bulk density yourself."
+3. Measured by the lab,"Wet weight, dry weight, and carbon concentration."
+4. Calculated after the lab,"Bulk density, carbon density and carbon stock per slice."
+,
+UNITS,
+Depths,centimetres (cm)
+Weights,grams (g)
+Volume,cubic centimetres (cm3)
+Carbon concentration,"Assume in percent (0-100%), some labs return decimal value (0-1)"
+Dry bulk density,g/cm3
+Carbon stock,reported per slice both as g C/cm2 and kg C/m2 (the field guide's Eq 4 and Eq 6).
+,
+PREP DATA for the R ANALYSIS,
+bulk_density_g_cm3,"Sheet 3, column Q — matches the field name expected by the EelgrassWorkshop scripts."
+soc_g_kg,"Sheet 3, column R — organic carbon in g/kg, which is simply %C x 10."
+,
+TWO THINGS THAT CATCH PEOPLE OUT,
+Measure your actual corer diameter,"Nominal pipe size is not internal diameter. A '3 inch' Schedule 40 PVC pipe has an internal diameter noticeably larger than 7.62 cm. Volume sits in the denominator of bulk density, so an assumed diameter biases EVERY carbon stock in the dataset. Measure the ID with calipers and enter that."
+"Compaction corrects depths, not stocks","Carbon stock per slice uses the MEASURED interval, not the decompacted one. The dry mass in the tube already came from a taller in-situ column, so multiplying by the compaction factor as well would double-count it. The corrected depths (columns I-K) exist to tell you which in-situ depth each slice represents, which is what depth harmonisation needs."
