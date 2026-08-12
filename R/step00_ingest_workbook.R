@@ -138,8 +138,11 @@ write_soil_cores_raw <- function(sheets, dsn = "data/soil_cores_raw.csv") {
 
 PLOT_COLS <- c("plot_id", "longitude", "latitude", "observed")
 
-write_field_plots_from_workbook <- function(sheets, dsn = "data/field_plots.gpkg",
-                                            full_coverage_only = TRUE) {
+# Every core is written out, including the ones that stop short of the target
+# depth. Depth harmonization (step 2) is what reconciles cores of different
+# lengths -- filtering them here would pre-empt it. coverage_flag rides along so
+# any later step can decide for itself.
+write_field_plots_from_workbook <- function(sheets, dsn = "data/field_plots.gpkg") {
   library(sf)
   d <- sheets[["6"]]
   if (is.null(d)) stop("sheet 6 (R export (plots)) was not ingested", call. = FALSE)
@@ -157,18 +160,8 @@ write_field_plots_from_workbook <- function(sheets, dsn = "data/field_plots.gpkg
             call. = FALSE)
   }
 
-  # A core that stopped short of the target depth is not an observation of that
-  # interval. Sheet 6 flags these; drop them rather than model them.
-  if (full_coverage_only && "coverage_flag" %in% names(d)) {
-    partial <- grepl("^PARTIAL", d$coverage_flag)
-    if (any(partial)) {
-      message("  dropping ", sum(partial), " partial-coverage core(s): ",
-              paste(d$plot_id[partial], collapse = ", "))
-      d <- d[!partial, , drop = FALSE]
-    }
-  }
-
-  keep <- intersect(c(PLOT_COLS, "units", "depth_basis", "coverage_flag"), names(d))
+  keep <- intersect(c(PLOT_COLS, "observed_units", "depth_basis", "coverage_flag"),
+                    names(d))
   pts <- sf::st_as_sf(d[, keep, drop = FALSE],
                       coords = c("longitude", "latitude"), crs = 4326, remove = FALSE)
   sf::st_write(pts, dsn, delete_dsn = TRUE, quiet = TRUE)
