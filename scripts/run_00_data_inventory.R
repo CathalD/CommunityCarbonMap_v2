@@ -67,6 +67,9 @@ message(sprintf(
 ))
 write_field_plots(cores, "data/field_plots.gpkg")
 
+# First look at the data, clipped to the AOI.
+print(plot_aoi_data(aoi, sf::st_read("data/field_plots.gpkg", quiet = TRUE)))
+
 # --- 0f. the inventory ----------------------------------------------------
 inventory <- build_data_inventory(
   priors = priors, covariates = covariates, ground = ground,

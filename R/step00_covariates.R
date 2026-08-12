@@ -94,10 +94,17 @@ covariate_images <- function(aoi_ee, ndvi_start = "2023-06-01",
 }
 
 #' Table 2 -- covariates summarized over the AOI
+# `summary_scale` is why this returns instead of timing out. NDVI and land cover
+# are 10 m products; reducing them at native scale over a 5 590 km2 AOI is ~56
+# million pixels per layer, times three reduceRegion calls. This table is a
+# SUMMARY -- 250 m (the coarsest prior's scale) gives the same AOI means from
+# ~90 000 pixels. Native resolution is used where it matters, in the stack
+# export, not here.
 covariate_table <- function(aoi_ee,
                             pts_ee = NULL,
                             registry = read_covariate_registry(),
                             imgs = NULL,
+                            summary_scale = 250,
                             verbose = TRUE) {
   library(rgee)
   if (is.null(imgs)) imgs <- covariate_images(aoi_ee)
@@ -109,7 +116,7 @@ covariate_table <- function(aoi_ee,
     rec <- data.frame(
       covariate = row$covariate, asset_id = row$asset_id, band = row$band,
       role = row$role, units = row$units, native_res_m = row$native_res_m,
-      temporal_window = row$temporal_window, scale_used_m = row$native_res_m,
+      temporal_window = row$temporal_window, scale_used_m = summary_scale,
       mean = NA_real_, sd = NA_real_, min = NA_real_, max = NA_real_,
       coverage_frac = NA_real_, n_valid_px = NA_real_, n_total_px = NA_real_,
       mean_at_cores = NA_real_, n_cores_with_data = NA_integer_,
@@ -125,7 +132,7 @@ covariate_table <- function(aoi_ee,
     }
     if (verbose) message("  [", i, "/", nrow(registry), "] ", row$covariate)
 
-    scale <- if (is.na(row$native_res_m)) 30 else row$native_res_m
+    scale <- summary_scale
     band <- tryCatch(img$bandNames()$getInfo()[[1]], error = function(e) NULL)
     if (is.null(band)) {
       rec$status <- "unavailable: could not read band names"
