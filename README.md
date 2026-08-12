@@ -1,86 +1,274 @@
 # CommunityCarbonMap_v2
 
-Regional Map Updating Framework — take an existing large-scale spatial
-product, fold in regional ground observations and high-resolution
-covariates, and produce a defensible regional posterior map at 10–30 m,
-with an explicit test for whether it's precise enough to manage by.
+**Regional Map Updating Framework** — take an existing large-scale carbon
+product, fold in regional ground observations and high-resolution covariates,
+and produce a defensible regional posterior map at 10–30 m, with an explicit
+test for whether it's precise enough to manage by.
 
-Full walkthrough (concept → pen-and-paper worked example → R code for every
-step): **[docs/workshop.html](docs/workshop.html)**, also hosted at
-https://claude.ai/code/artifact/e099dd7e-e5c3-44e9-bcb2-531d5ab4d753
+Built for workshop delivery: **every calculation is done by hand first, then
+scaled up in R.** If the R output and the hand calculation disagree, the hand
+calculation is right and the code is wrong.
 
-## Quickstart
+- Full walkthrough (concept → worked example → R): **[docs/workshop.html](docs/workshop.html)**
+- How the code lines up with the Methods text, and where it doesn't:
+  **[docs/code_vs_methods_review.md](docs/code_vs_methods_review.md)** — read this
+  before teaching from the code.
 
-```r
-source("scripts/00_install_packages.R")      # once per machine
-source("scripts/00_generate_synthetic_data.R")  # tiny toy AOI + field plots, so
-                                                 # everything below runs before
-                                                 # real project data exists
+---
 
-source("scripts/run_00_data_inventory.R")
-source("scripts/run_01_characterize_prior.R")
-# ...through run_16_propose_sample_sites.R, in order
+## 1. Workflow: paper steps → R steps
+
+The Methods text is organised into six stages. Each maps onto numbered R steps.
+Steps marked **manual first** are the ones participants calculate on paper before
+seeing the code.
+
+| Methods stage | What you do on paper | R function | Script |
+|---|---|---|---|
+| **Overview** — characterize the prior over the AOI | **manual**: mean of 5 pixel values; mean of 5 pixel SDs. Note these are *different quantities* | `characterize_prior()` | `run_01_characterize_prior.R` |
+| — compile what exists | — | `build_data_inventory()` + the three step-0 tables | `run_00_data_inventory.R` |
+| **Sample & covariate assessment** — harmonize ground data | **manual**: overlap-weight one core to 0–15 / 15–30 cm in the workbook | `harmonize_core_depths()` | `run_02_harmonize_depths.R` |
+| — extract prior + covariates at plots | — | `extract_prior_covariates()` | `run_03_extract_covariates.R` |
+| — residuals, bias, model performance | **manual**: `observed − prior`, then RMSE of 5 numbers | `compare_prior_observed()` | `run_04_compare_prior_observed.R` |
+| — where is the prior wrong? | look at the map | `spatial_residual_diagnostics()` | `run_05_spatial_residuals.R` |
+| **Incorporation of ground data** — spatial model | interpret only | `build_rf_workflow()` | `run_06_build_regional_workflow.R` |
+| — validate | interpret only | `validate_rf_workflow()` | `run_07_validate_regional_workflow.R` |
+| — is the model beating the prior? | **manual**: compare two RMSEs | `compare_prior_vs_model()` | `run_08_compare_prior_vs_model.R` |
+| — (plumbing: model → rasters) | — | `predict_regional_raster()` | `run_08b_predict_regional_raster.R` |
+| — weight prior against ground data | **manual**: precision-weighted average of two numbers | `bayesian_update_normal()` | `run_09_bayesian_update.R` |
+| **Spatial modelling & downscaling** — apply at every pixel | — | `bayesian_update_raster()` | `run_10_bayesian_update_raster.R` |
+| — ship the map | — | `export_posterior_products()` | `run_11_export_posterior.R` |
+| **Validation & uncertainty** — back to prior support | **manual**: average 4 fine pixels, compare to 1 coarse | `check_change_of_support()` | `run_12_check_change_of_support.R` |
+| — comparison layers | **manual**: one subtraction, one ratio | `compare_prior_posterior_maps()` | `run_13_compare_maps.R` |
+| — *(spatial Bayes — roadmap only, no code)* | — | — | — |
+| — CV and the management threshold | **manual**: `SD ÷ mean` | `test_management_precision()` | `run_15_management_precision.R` |
+| **Sampling recommendations** — where next | **manual**: rank 5 cells by SD | `propose_next_sample_sites()` | `run_16_propose_sample_sites.R` |
+
+### The one worked example that ties it together
+
+Carry these five numbers through the whole workshop:
+
+```
+prior          = 150 ± 30 Mg C/ha      (step 1)
+regional model = 170 ± 20 Mg C/ha      (steps 6–8)
+
+posterior_variance = 1 / (1/30² + 1/20²)
+posterior_mean     = posterior_variance × (150/30² + 170/20²)   = 163.85
+posterior_sd       = sqrt(posterior_variance)                    =  16.64
+CV                 = 16.64 / 163.85                              =  10.2%   → passes a 20% threshold
+uncertainty reduction = 1 − 16.64/30                             =  44.5%
 ```
 
-Or run the whole thing as a pipeline once individual scripts work:
+`bayesian_update_normal(150, 30, 170, 20)` returns exactly these numbers. If it
+ever doesn't, the code changed and the workshop needs rechecking.
+
+---
+
+## 2. Input data requirements
+
+Everything lives in `data/`. Two files are supplied by you; the rest are either
+generated by step 0 or downloaded from Earth Engine.
+
+### Rasters
+
+| File | Used by | Requirements |
+|---|---|---|
+| `prior_mean.tif` | 1, 12 | Single band. Prior estimate at its **native coarse** resolution (250 m in the examples). |
+| `prior_sd.tif` | 1, 13 | Single band, same grid as `prior_mean.tif`. Per-pixel uncertainty. |
+| `prior_mean_10m.tif` | 3, 6, 10, 13 | Prior at the **target** posterior resolution (10–30 m). |
+| `prior_sd_10m.tif` | 3, 10, 13 | Same grid as above. |
+| `sentinel2_ndvi.tif` | 3, 6 | Vegetation index, ~10 m. |
+| `dem.tif` | 3, 6 | Elevation, ~30 m. |
+| `slope.tif` | 3, 6 | Slope in degrees. Derivable from `dem.tif`. |
+
+**Projection.** Any **projected** CRS in metres — resolution arithmetic and
+`terra::aggregate()` factors assume metres, not degrees. The AOI, the priors and
+the covariates must share one CRS before step 3; step 0's `download_aoi_stack()`
+exports everything in EPSG:3857 by default. Geographic (EPSG:4326) inputs will
+run but give wrong aggregation factors at step 12.
+
+**Alignment.** Step 10 does raster algebra cell-by-cell across four layers, so
+`prior_mean_10m`, `prior_sd_10m`, `regional_mean` and `regional_sd` must be on an
+identical grid — same extent, resolution and CRS. Resample first; `terra` will
+error rather than guess.
+
+**Units.** Pick one and stay in it. The workshop text uses Mg C/ha; the asset
+catalogue and the field workbook use kg C/m². `1 kg C/m² = 10 Mg C/ha`. Mixing
+them produces a 10× error that every downstream number will quietly inherit.
+
+### Vectors
+
+| File | Used by | Required columns |
+|---|---|---|
+| `aoi.geojson` / `aoi.gpkg` | 0, 1 | Single polygon. The `.gpkg` is generated from the `.geojson` by step 0. |
+| `field_plots.gpkg` | 3 | `plot_id` (character), `observed` (numeric — the target variable). Generated by step 0 from the cores; extra columns are harmless. |
+
+### Tables
+
+| File | Used by | Columns |
+|---|---|---|
+| `community_soil_cores.csv` | 0, 2 | `year, Core Id, Sample Id, Latitude, Longitude, Depth, Bulk Density, OM, SOC` |
+| `soil_cores_raw.csv` | 2 | `plot_id, depth_from, depth_to, soc, bulk_density, coarse_frag` |
+| `prior_assets.csv` | 0 | Registry of carbon-map GEE assets. Add a row, don't edit code. |
+| `covariate_assets.csv` | 0 | Registry of covariate GEE assets. |
+
+### Example data structure
+
+`community_soil_cores.csv` — one row per **slice**, `Depth` is slice
+**thickness**, not depth-to-bottom:
+
+```csv
+year,Core Id,Sample Id,Latitude,Longitude,Depth,Bulk Density,OM,SOC,Organic Carbon Density (g/cm^2)
+2024,PM-01-A,PM-01-A,56.098575,87.67978,14.5,0.0929,39.1,22.7,0.0210883
+2025,FS-05,FS-05-1,56.079389,87.75622,10,0.279483076,15.6,8.6,0.024035545
+2025,FS-05,FS-05-2,56.079389,87.75622,10,2.036520107,2.1,1.1,0.022401721
+```
+
+`soil_cores_raw.csv` — one row per **depth interval**, stacked from the surface,
+no gaps or overlaps within a `plot_id` (export sheet 5 of the workbook):
+
+```csv
+plot_id,depth_from,depth_to,soc,bulk_density,coarse_frag
+FS-05,0,10,86,0.2795,0
+FS-05,10,20,11,2.0365,0
+FS-05,20,30,9,1.6241,0
+```
+
+`soc` is in **g/kg** (= %C × 10) — the unit `soilassessment::depthharm()` expects.
+
+> **Three corrections already applied to the supplied cores** (see
+> `data/soil_carbon_calculation.xlsx`, sheet 1): longitudes were supplied
+> positive but Fort Severn is ~87.7° **west**; the column labelled
+> `Organic Carbon Density (g/cm^2)` is actually g C per **cm³**; and `Depth` is
+> slice thickness, not depth-to-bottom.
+
+---
+
+## 3. Dependencies and installation
+
+```r
+source("scripts/00_install_packages.R")   # once per machine
+```
+
+Installs: `terra`, `sf`, `soilassessment`, `aqp`, `tidymodels`, `ranger`,
+`spdep`, `gstat`, `targets`, `tarchetypes`, `ggplot2`.
+
+**Earth Engine (step 0 only).** Step 0 is the only part of the workflow that
+touches GEE — everything else runs offline from files on disk.
+
+```r
+install.packages("rgee")
+rgee::ee_install()        # once: sets up the Python backend
+rgee::ee_Authenticate()   # once: browser sign-in
+Sys.setenv(GEE_PROJECT = "your-cloud-project")
+```
+
+**System libraries.** `sf` and `terra` need GDAL, GEOS and PROJ. On Ubuntu:
+`apt-get install libgdal-dev libgeos-dev libproj-dev libudunits2-dev`, or
+`apt-get install r-cran-sf r-cran-terra` for prebuilt binaries.
+
+### Running it
+
+```r
+source("scripts/run_00_data_inventory.R")   # needs Earth Engine
+source("scripts/run_01_characterize_prior.R")
+# ... through run_16_propose_sample_sites.R, in order
+```
+
+Or as a pipeline once the individual scripts work:
 
 ```r
 targets::tar_make()
-targets::tar_visnetwork()  # see the dependency graph
+targets::tar_visnetwork()
 ```
 
-Swap the files under `data/` for real project data (same filenames) and
-skip `00_generate_synthetic_data.R` — nothing downstream changes.
+`tar_make()` never calls Earth Engine — it reads the CSVs step 0 wrote.
 
-## Layout
+---
+
+## 4. Layout
 
 ```
 R/            one function per step — the thing to unit-test / hand-verify
 scripts/      one script per step — sources the function, runs it once,
               writes one artifact under outputs/
 _targets.R    the same functions, wired into a targets pipeline
-data/         inputs (gitignored; regenerate with 00_generate_synthetic_data.R)
-outputs/      everything the scripts/ + pipeline produce (gitignored)
-docs/         the full workshop write-up
+data/         inputs (gitignored except the registries and README)
+outputs/      everything the scripts + pipeline produce (gitignored)
+docs/         workshop write-up + the code/methods alignment review
 ```
 
-Every `R/stepXX_*.R` file is one function, matched to a `scripts/run_XX_*.R`
-script that sources it and runs it once against real files on disk — no
-step depends on being run inside `targets` to be tested. `_targets.R` wires
-the identical function calls into `tar_target()`s so re-runs only redo what
-actually changed. `R/bridge_predict_regional_raster.R` +
-`scripts/run_08b_predict_regional_raster.R` are plumbing between steps 8 and
-9–10 (turning the fitted tabular model into spatial `regional_mean` /
-`regional_sd` rasters) — not one of the framework's numbered steps, but
-needed to actually run it end to end.
+Step 0 is split across five files because it does five things (setup, three
+tables, visuals); every other step is one file, one function.
 
-| # | Step | Function | Script |
-|---|------|----------|--------|
-| 0 | What do we know? | `build_data_inventory()` | `run_00_data_inventory.R` |
-| 1 | Characterize the prior over the AOI | `characterize_prior()` | `run_01_characterize_prior.R` |
-| 2 | Harmonize ground data to target depths | `harmonize_core_depths()` | `run_02_harmonize_depths.R` |
-| 3 | Extract prior + covariates at plots | `extract_prior_covariates()` | `run_03_extract_covariates.R` |
-| 4 | Compare observed vs. prior | `compare_prior_observed()` | `run_04_compare_prior_observed.R` |
-| 5 | Spatial residual diagnostics | `spatial_residual_diagnostics()` | `run_05_spatial_residuals.R` |
-| 6 | Build the regional model | `build_rf_workflow()` | `run_06_build_regional_workflow.R` |
-| 7 | Validate the regional model | `validate_rf_workflow()` | `run_07_validate_regional_workflow.R` |
-| 8 | Prior vs. regional RF | `compare_prior_vs_model()` | `run_08_compare_prior_vs_model.R` |
-| — | *(bridge: model → rasters)* | `predict_regional_raster()` | `run_08b_predict_regional_raster.R` |
-| 9 | Bayesian update (scalar) | `bayesian_update_normal()` | `run_09_bayesian_update.R` |
-| 10 | Bayesian update (spatial) | `bayesian_update_raster()` | `run_10_bayesian_update_raster.R` |
-| 11 | Create the posterior map | `export_posterior_products()` | `run_11_export_posterior.R` |
-| 12 | Change-of-support check | `check_change_of_support()` | `run_12_check_change_of_support.R` |
-| 13 | Compare the maps | `compare_prior_posterior_maps()` | `run_13_compare_maps.R` |
-| 14 | *(roadmap marker — no code; see the workshop)* | — | — |
-| 15 | Management precision | `test_management_precision()` | `run_15_management_precision.R` |
-| 16 | Propose next sample sites | `propose_next_sample_sites()` | `run_16_propose_sample_sites.R` |
+---
 
-## Version 1 vs. Version 2
+## 5. Troubleshooting
 
-Version 1 (this repo, as written) is deliberately simple: independent
-pixels, ordinary v-fold cross-validation, a scalar Normal–Normal Bayesian
-update applied pixel-by-pixel. Spatial covariance, spatially-structured
-resampling (`spatialsample`), and a hierarchical spatial Bayesian model
-(`brms` / `INLA` / `inlabru`) are Version 2 — worth building once Version 1
-is demonstrated and validated on real data, not before. See the workshop's
-Step 14 for what that looks like.
+**`ee_Initialize()` fails / "User installation could not be completed"**
+Run `rgee::ee_install()` then `rgee::ee_Authenticate()` once. If
+`ee_Initialize(project=)` errors on an older rgee, `gee_init()` falls back to
+`ee_Initialize()` automatically. Set `GEE_PROJECT` to your own cloud project —
+the default is inferred from the private asset paths in the catalogue.
+
+**"Asset not found or not readable"**
+Several assets in `data/prior_assets.csv` are **private** to specific GEE
+projects. Table 1 reports these as unavailable and continues rather than
+aborting. Public alternatives are noted in the registry's `note` column.
+
+**SoilGrids band-name error**
+`soilgrids_stock_0_30()` checks band names before computing and errors with the
+names it actually found. ISRIC renames bands occasionally — update the `bands`
+list in `R/step00_prior_tables.R`.
+
+**A prior's AOI mean looks implausible**
+Check `coverage_frac` in `outputs/prior_map_table.csv` first. The Li et al. peat
+prior is NoData over mineral ground and open water and is expected to cover only
+~44% of the Fort Severn AOI — its "mean" describes peat pixels, not the AOI.
+
+**Rasters won't combine at step 10 (`extents do not match`)**
+All four inputs must share one grid. `terra::resample(x, template)` first.
+
+**Step 2 errors inside `depthharm()`**
+It needs an `aqp::SoilProfileCollection`, not a data.frame —
+`harmonize_core_depths()` promotes it. If it still errors, run
+`print(soilassessment::depthharm)` and check whether it wants the depth columns
+named `top`/`bottom`. The workbook computes the same harmonisation
+transparently; use it to check whatever the package returns.
+
+**CV map has `Inf`, or a nonsense pixel passes the threshold**
+Known issue — `test_management_precision()` divides by `posterior_mean` with no
+guard. A zero mean gives `Inf`; a **negative** mean gives a negative CV that
+silently passes. Mask `posterior_mean <= 0` to `NA` before using the CV map to
+make a decision. See finding **A5** in the review.
+
+**The posterior barely moved / uncertainty reduction looks too good**
+Two known causes, both in the review: the prior is used as an RF predictor *and*
+as the prior in the update (**A1**), which double-counts it and understates the
+posterior SD; and `regional_sd` is a constant with no `1/√n`, so collecting more
+cores does not tighten the posterior (**A2**).
+
+**Only 5–20 field plots**
+`validate_rf_workflow(v = 5)` leaves 1–4 observations per fold and the resulting
+RMSE is very unstable. Treat step 7's metrics as indicative, and prefer the
+step 8 prior-vs-model comparison as the decision gate.
+
+**Numbers disagree with the spreadsheet**
+The spreadsheet wins. `data/soil_carbon_calculation.xlsx` is verified
+cell-by-cell against an independent hand calculation
+(`scripts/verify_soil_carbon_workbook.py`).
+
+---
+
+## 6. Version 1 vs. Version 2
+
+Version 1 is deliberately simple: independent pixels, ordinary v-fold
+cross-validation, a scalar Normal–Normal update applied pixel-by-pixel. Spatial
+covariance, `spatialsample` resampling, and a hierarchical spatial Bayesian model
+(`brms` / `INLA` / `inlabru`) are Version 2 — worth building once Version 1 is
+demonstrated on real data, not before.
+
+**Assumptions Version 1 makes, which belong in the Methods text:** Gaussian prior
+and likelihood; prior and evidence independent (currently violated — see **A1**);
+variances known and fixed; pixels independent when the update is applied
+cell-by-cell. Carbon stocks are right-skewed and often better modelled
+lognormally — expect a reviewer to raise it.
