@@ -47,3 +47,24 @@ path is: run `scripts/run_01_characterize_prior.R` onward one at a time,
 fix whichever script/function breaks on the real shape, and keep going —
 the same "one function, one script" loop the workshop describes, just aimed
 at real data instead of the synthetic set.
+
+## What step 0 now generates
+
+`scripts/run_00_data_inventory.R` is the only script that talks to Earth
+Engine. It authenticates, ingests `aoi.geojson` + `community_soil_cores.csv`,
+and writes the files the later steps expect, so several rows above are now
+produced rather than supplied:
+
+| Generated | By | Notes |
+|---|---|---|
+| `aoi.gpkg` | `write_aoi_gpkg()` | Same polygon as `aoi.geojson`, in the format `run_01` and `_targets.R` read. AOI is 5 590 km². |
+| `field_plots.gpkg` | `write_field_plots()` | `plot_id` + `observed` (0–30 cm stock, kg C/m²) from the community cores. Partial-coverage cores are dropped, so this has 6 rows, not 8. |
+| `prior_mean.tif`, `prior_sd.tif`, `prior_mean_10m.tif`, `prior_sd_10m.tif`, `sentinel2_ndvi.tif`, `dem.tif`, `slope.tif` | `download_aoi_stack()` | Only when `DOWNLOAD_STACK <- TRUE`. Exported clipped to the AOI at 30 m (250 m for the two coarse prior files). |
+
+The asset lists driving it are `prior_assets.csv` (carbon maps and point
+databases, the machine-readable form of `CarbonResources_Assets+Covariates`)
+and `covariate_assets.csv`. Both are plain CSVs — add a row rather than edit
+code to bring another product in.
+
+`soil_cores_raw.csv` is still the one input step 2 needs that step 0 does not
+produce: export sheet 5 of `soil_carbon_calculation.xlsx` to that filename.

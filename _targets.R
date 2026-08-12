@@ -30,7 +30,22 @@ list(
   tar_target(soil_cores_file,   "data/soil_cores_raw.csv",   format = "file"),
 
   # ---- step 0 --------------------------------------------------------------
-  tar_target(data_inventory, build_data_inventory()),
+  # The three step-0 tables are produced by scripts/run_00_data_inventory.R,
+  # which is the only part of the workflow that talks to Earth Engine. The
+  # pipeline reads its CSV output instead of calling GEE itself, so tar_make()
+  # never depends on an Earth Engine session being available.
+  tar_target(prior_map_file,    "outputs/prior_map_table.csv",   format = "file"),
+  tar_target(covariate_file,    "outputs/covariate_table.csv",   format = "file"),
+  tar_target(open_ground_file,  "outputs/open_ground_table.csv", format = "file"),
+  tar_target(community_cores_file, "data/community_soil_cores.csv", format = "file"),
+
+  tar_target(data_inventory, build_data_inventory(
+    priors     = utils::read.csv(prior_map_file,   stringsAsFactors = FALSE),
+    covariates = utils::read.csv(covariate_file,   stringsAsFactors = FALSE),
+    ground     = utils::read.csv(open_ground_file, stringsAsFactors = FALSE),
+    cores      = summarize_community_cores(community_cores_file),
+    aoi        = load_aoi("data/aoi.geojson")
+  )),
 
   # ---- step 1 --------------------------------------------------------------
   tar_target(prior_summary, characterize_prior(
