@@ -55,7 +55,9 @@ aoi_area_km2 <- function(aoi) {
 
 aoi_to_ee <- function(aoi) {
   library(rgee)
-  rgee::sf_as_ee(sf::st_geometry(aoi))$geometry()
+  # sf_as_ee() returns an ee$Geometry for an sfc and an ee$FeatureCollection for
+  # an sf data.frame. Union first so this is always a single geometry.
+  rgee::sf_as_ee(sf::st_union(sf::st_geometry(aoi)))
 }
 
 # _targets.R and run_01 read data/aoi.gpkg; the practitioner supplied
