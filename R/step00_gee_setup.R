@@ -6,13 +6,18 @@
 # clipping first is the difference between a reduction that returns and one
 # that times out.
 
+# `drive = TRUE` is required before any raster download: ee_as_rast() sends
+# anything larger than a getInfo request through Google Drive, and that needs
+# the Drive credential attached at init time. It triggers a one-off browser
+# consent the first time.
 gee_init <- function(project = Sys.getenv("GEE_PROJECT", "ee-cathalpdoherty2"),
+                     drive = FALSE,
                      quiet = FALSE) {
   library(rgee)
 
   # rgee gained the `project` argument fairly late; fall back for older installs.
   ok <- tryCatch({
-    rgee::ee_Initialize(project = project)
+    rgee::ee_Initialize(project = project, drive = drive)
     TRUE
   }, error = function(e) {
     if (!quiet) message("ee_Initialize(project=) failed: ", conditionMessage(e))
@@ -21,7 +26,7 @@ gee_init <- function(project = Sys.getenv("GEE_PROJECT", "ee-cathalpdoherty2"),
 
   if (!ok) {
     ok <- tryCatch({
-      rgee::ee_Initialize()
+      rgee::ee_Initialize(drive = drive)
       TRUE
     }, error = function(e) {
       stop(

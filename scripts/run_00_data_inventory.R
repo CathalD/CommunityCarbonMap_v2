@@ -19,13 +19,15 @@ source("R/step00_ground_data.R")
 source("R/step00_visualize.R")
 source("R/step00_data_inventory.R")
 
-DOWNLOAD_STACK <- FALSE   # TRUE also writes data/*.tif for run_01 / run_03
-MAKE_FIGURES   <- FALSE   # TRUE writes outputs/figures/*.png (needs the tifs)
+# run_01 onwards read data/*.tif, so these have to be downloaded at least once.
+# Turn this off on later runs to skip the (slow) Drive export and just refresh
+# the tables.
+DOWNLOAD_STACK <- TRUE
 
 dir.create("outputs", showWarnings = FALSE)
 
 # --- 0a. authenticate and ingest ------------------------------------------
-gee_init()
+gee_init(drive = DOWNLOAD_STACK)
 
 aoi    <- load_aoi("data/aoi.geojson")
 aoi_ee <- aoi_to_ee(aoi)
@@ -85,9 +87,11 @@ stack <- build_aoi_stack(aoi_ee, imgs = cov_imgs)
 if (DOWNLOAD_STACK) {
   written <- download_aoi_stack(stack, aoi_ee, dir = "data", scale = 30)
   message("wrote: ", paste(written, collapse = ", "))
-  if (MAKE_FIGURES) {
-    pngs <- plot_stack_to_png(written, aoi = aoi, pts = pts)
-    message("figures: ", paste(pngs, collapse = ", "))
+
+  # Second look: the prior itself, clipped to the AOI, with the cores on top.
+  if (file.exists("data/prior_mean.tif")) {
+    plot_aoi_raster("data/prior_mean.tif", aoi = aoi, pts = pts,
+                    main = "Prior carbon (kg C/m2), clipped to AOI")
   }
 }
 
