@@ -253,12 +253,12 @@ summarize_community_cores <- function(path = "data/community_soil_cores.csv",
 #' Write the point layer run_03 reads, from the community cores.
 #'
 #' Closes the gap between step 0 and step 3: field_plots.gpkg needs plot_id and
-#' observed, and observed is the 0-30 cm stock computed above. Partial-coverage
-#' cores are dropped by default -- a core that stops at 14.5 cm is not a 0-30 cm
-#' observation.
+#' observed, and observed is the 0-30 cm stock computed above. Every core is
+#' written -- depth harmonization (step 2) is what reconciles cores of different
+#' lengths, so filtering here would pre-empt it. core_bottom_cm rides along.
 write_field_plots <- function(cores = summarize_community_cores(),
                               dsn = "data/field_plots.gpkg",
-                              full_coverage_only = TRUE) {
+                              full_coverage_only = FALSE) {
   library(sf)
   d <- cores$per_core
   if (full_coverage_only) d <- d[d$full_coverage, ]

@@ -20,6 +20,28 @@ CARBON_PALETTE <- c("#f7f4e9", "#d9c99a", "#a3874b", "#6b5a2e", "#3a3018")
 UNCERTAINTY_PALETTE <- c("#ffffcc", "#fed976", "#fd8d3c", "#e31a1c", "#800026")
 NDVI_PALETTE <- c("#ad4f34", "#e8e3b0", "#7aa457", "#2f5233")
 
+#' One simple plot of the ground data, clipped to the AOI.
+#'
+#' ggplot2 + geom_sf, nothing else. This is the first look at step 0's output:
+#' where the cores are, and how much carbon each holds.
+plot_aoi_data <- function(aoi, plots) {
+  library(ggplot2)
+  library(sf)
+
+  ggplot() +
+    geom_sf(data = aoi, fill = "grey95", colour = "grey40") +
+    geom_sf(data = plots, aes(colour = observed, size = observed)) +
+    scale_colour_viridis_c(option = "viridis") +
+    labs(
+      title  = "Community soil cores within the AOI",
+      colour = "0-30 cm stock\n(kg C/m2)",
+      size   = "0-30 cm stock\n(kg C/m2)"
+    ) +
+    xlab("Longitude") +
+    ylab("Latitude") +
+    theme_minimal()
+}
+
 #' Add one Earth Engine image to an interactive map, clipped to the AOI.
 #'
 #' @param img    ee$Image (clipped or not -- it gets clipped here regardless)
