@@ -1,283 +1,290 @@
-# Code vs. Methods — alignment review
+# Code vs. Methods — alignment and defensibility review
 
-Reviews every `R/step*.R` function against the Introduction and Methods draft,
-section by section. Findings marked **[verified]** were confirmed by running the
-function against synthetic data on 2026-08-12; **[read-only]** means the code was
-read but not executed (no `tidymodels`/`rgee` in the review environment).
+Merges three things into one list, ordered so it can be worked through in the
+order the workflow runs:
 
-Severity: **A** = scientific defensibility, fix before the workshop ·
-**B** = methods promises something the code does not do ·
-**C** = ordering mismatch · **D** = hygiene · **E** = code is *ahead* of the text.
+1. the original code-vs-Methods alignment review (findings `A`–`E`);
+2. the bugs that only surfaced running against Fort Severn rather than the toy
+   AOI (findings `N`);
+3. the defensibility critique — what a reviewer will attack (findings `R`).
 
----
+Status: **DONE** fixed and verified · **PART** partly addressed · **OPEN** not
+started · **DECIDE** blocked on a decision from you.
 
-## Status — updated after the first real-data run
-
-Legend: **DONE** fixed and verified · **PART** partly addressed · **OPEN** not started ·
-**DECIDE** blocked on a decision from you.
-
-| # | Methods says | Code does | Status |
-|---|---|---|---|
-| A1 | Prior and ground data are independent sources combined by weighting | `prior` was an RF **predictor** *and* the prior in the update | **DONE** `47cd9f2` — dropped from the `run_06` formula. `run_08b` still passes `prior` in the covariate stack — check when you reach it |
-| A2 | "determine the number of field samples required" (Intro) | `regional_sd` = a constant CV RMSE, no `1/√n` | **OPEN** — needs pixel-level evidence uncertainty (kriging variance, or ranger `type = "se"`, or `CAST::aoa()`) |
-| A3 | Weight by prior precision, ground uncertainty, sample variance, n | Weights by prior SD and evidence SD only | **OPEN** — you chose: keep prior weight by SD, give the evidence a spatially varying SD. Same work as A2 |
-| A4 | — (not stated) | Normal–Normal conjugate update | **PART** — the four assumptions are written into README §6; still absent from your Methods text |
-| A5 | CV = SD/mean × 100% | No guard on `mean ≤ 0` | **OPEN** — Inf at mean 0, and a negative mean still silently *passes* the threshold |
-| A6 | *(not in the original review)* prior and observations on the same depth basis | Li is full-peat-column, cores are 0–30 cm | **OPEN — biggest open item.** `bias = −36.8`, MAE ≈ |bias|, so it is nearly pure offset. See below |
-| B1 | Kriging, IDW, or strata extrapolation | None of the three exist | **DECIDE** — Moran's I = 0.277, p = 0.034, but on 7 points with k = 2. Suggestive, not conclusive |
-| B2 | Green / yellow / red CV categories | Continuous CV raster + binary pass/fail | **OPEN** — and the "25%" wording still needs pinning down (relative vs percentage points) |
-| B3 | Sample size needed for target precision | — | **OPEN** — depends on A2 |
-| B4 | Neyman allocation (optional) | — | **OPEN** (consistent with "optional") |
-| B5 | "across available depth intervals" | Single-layer rasters throughout | **PART** — step 2 now harmonizes to 0–15/15–30/30–50/50–100 and extrapolates to 100 cm. The raster side is still single-depth |
-| B6 | Precision gap "quantified and mapped" before sampling | Runs at step 15, on the posterior | **OPEN** |
-| C1 | ground data → spatial model → update prior → RF downscale | RF → update prior with RF output | **DECIDE** — unchanged; the ordering question is still live |
-| D1 | "summarized … while retaining pixel-level spatial detail" | `characterize_prior()` returns 2 scalars | **OPEN** |
-| D2 | "user-defined spatial resolutions" | Filenames hardcode `_10m` | **OPEN** — confirmed on real data: `prior_mean_10m.tif` holds a **30 m** raster |
-| D3 | Rank sites by likely improvement | `posterior_sd + abs(z_residual)` | **OPEN** — adds kg C/m² to a unitless z-score |
-| D4 | "meaningful adjustments" | `delta_mu` raster, no threshold | **OPEN** |
-| D5 | — | No sample-size warning, no normality check, Moran's I off by default | **PART** — step 5 now guards Moran/variogram by n, step 7 caps `v`. Still no normality check, and nothing downstream consumes Moran's result |
-| E1 | (text conflates them) | Step 1 separates AOI mean from typical pixel SD | **Code is better — still needs adopting into the text** |
-| E2 | "resampling outputs back to prior support" | `check_change_of_support()` | **Already implemented** |
-| E3 | — | Step 8 gate: stop if RF does not beat the prior | **Good practice — still add to the text** |
-
-## Bugs found by running it on real data
-
-None of these were in the original review; all surfaced between the toy AOI and Fort Severn.
-
-| # | Symptom | Cause | Status |
-|---|---|---|---|
-| N1 | `AttributeError: 'Geometry' object has no attribute 'geometry'` | `sf_as_ee()` on an `sfc` already returns a Geometry | **DONE** `14c64f5` |
-| N2 | `[crop] extents do not overlap` | AOI in degrees, rasters in projected metres; `crop()` does not reproject | **DONE** `dbc67cc` |
-| N3 | Covariate table timed out | Reducing 10 m NDVI/land cover at native scale = ~56 M px/layer × 3 calls | **DONE** `0e956ef` — one 250 m `summary_scale` |
-| N4 | `depthharm()`: "arguments imply differing number of rows: 8, 22" | Black box, and splining a concentration does not conserve mass | **DONE** `d6ba76c` — overlap weighting in base R, reproduces sheet 4 exactly |
-| N5 | `bias`/`mae`/`rmse` all `NA`; Moran's I crashed | Peat prior is NoData over mineral ground, so plots extract `prior = NA` | **DONE** `2aba93e` — counted and reported, not hidden |
-| N6 | "argument is of length zero", every fold, "All models failed" | parsnip treats an explicit `mtry = NULL` as *supplied* → `min_cols(NULL, x)` | **DONE** `a36bc71` — **latent bug, would fail at any n** |
-| N7 | Posterior would have holes wherever the prior is NoData | `1/NA²` propagates | **DONE** `3ad85a5` — zero precision, so posterior = evidence there |
-| N8 | `tar_make()` subprocess killed at `regional_rasters_file` | `as.data.frame()` on 40 M cells × 6 cols | **OPEN — currently blocking.** Fix is `terra::predict()`, which blocks internally |
-| N9 | `slope.tif` unreadable (`TIFFReadEncodedTile failed`) | Drive download reset mid-transfer, left a truncated file | Worked around locally (`terra::terrain()` from `dem.tif`); not codified |
-| N10 | Ingest dropped partial-coverage cores | Filtering at read time pre-empted step 2 | **DONE** `11b6ff5` — all 8 cores, all 22 layers |
-
-## A6 — the depth-basis mismatch, quantified
-
-The single most consequential open item, and it is now measured rather than suspected:
-
-```
-observed (0–30 cm cores)      mean  8.63 kg C/m²
-prior at the plots            44–48 kg C/m²
-bias  = −36.78     mae = 36.78     rmse = 37.62
-z_residual = −1.2 to −1.9 at every plot, same sign
-```
-
-MAE equals |bias| to two decimals — the error is almost pure offset, not scatter. That is
-what a depth-basis mismatch looks like: a full-peat-column prior against 0–30 cm
-observations. A Normal–Normal update cannot see a systematic offset as anything other than
-evidence to be averaged, so it will pull the ground data toward a prior that is measuring a
-different quantity, and the posterior will be *precise and wrong* wherever the prior
-dominates.
-
-Converting the prior by peat thickness (30 / 184 cm) gives ≈10.5 kg C/m² against the cores'
-8.63 — within 22%, versus 4–5× on the raw comparison. That conversion, or an equivalent
-decision, is what makes step 9 meaningful.
+Findings marked *[verified]* were confirmed by running the code; *[read-only]*
+means it was read but not executed.
 
 ---
 
-## Section-by-section
+## The one-paragraph version
 
-### Overview → `step01_characterize_prior.R`
+The posterior **mean** is not where the argument will be. It is defensible. The
+argument is about the posterior **uncertainty**, and there are exactly three
+ways it is currently overconfident: the prior and the evidence are treated as
+independent when they are not (`R1`), the AOI prior variance ignores spatial
+correlation between pixels (`R4`), and a cross-validated RMSE is being used as
+a per-pixel variance (`R3` = `A2`). Each has a concrete, publishable fix. Fixing
+all three moves this from "a weighted average of two maps" to something much
+closer to hierarchical spatial data fusion, and shifts the reviewer's question
+from *"is this valid?"* to *"how well are the covariances estimated?"* — which
+is the argument you want to be having.
 
-**Methods:** *"Both estimated carbon stocks (across available depth intervals) and
-their associated uncertainties are assessed … summarized across the AOI while
-retaining pixel-level spatial detail."*
-
-**Code does [verified]:** crops and masks `prior_mean`/`prior_sd` to the AOI and
-returns exactly two numbers — `aoi_mean_estimate` and `mean_pixel_sd_in_aoi`.
-Test run returned 148.63 and 29.90 from a 20×20 synthetic grid.
-
-- **D1** The masked rasters are built and then thrown away. If the text promises
-  pixel-level detail, return the cropped rasters alongside the scalars — it is a
-  two-line change and everything downstream (B6, the CV gap map) needs them.
-- **B5** One `prior_mean`, one `prior_sd`. Nothing loops over depth intervals.
-  Every product in the asset catalogue is published at 3–6 depths, so this is a
-  real narrowing of the framework as written.
-- **E1** The function's comment block is more careful than the Methods text: it
-  states that the mean per-pixel SD is *not* the uncertainty of the AOI mean,
-  because pixel errors are correlated. **The Methods should say this.** As
-  drafted, "uncertainty metrics are summarized across the AOI" invites exactly
-  the conflation the code refuses to make.
-
-### Sample and Covariate Assessment → steps 0, 2, 3, 4
-
-**Methods:** *"Existing ground observations within the AOI are identified and
-compiled … harmonized to standardized depth intervals … Residuals between mapped
-estimates and measured field values are calculated."*
-
-**Aligned.** Step 0 compiles open ground data by AOI overlap, step 2 harmonizes,
-step 3 extracts prior + covariates **[verified — works on a `SpatVector`, returns
-`plot_id, observed, prior, prior_sd, ndvi, elevation, slope`]**, step 4 computes
-residuals, bias, MAE, RMSE **[verified]**.
-
-- Step 2 is the weak link *pedagogically*: `soilassessment::depthharm()` is a
-  black box whose behaviour the repo comments still flag as unverified. The
-  workbook (`data/soil_carbon_calculation.xlsx`, sheet 3) already does
-  overlap-weighted harmonisation transparently and is verified cell-by-cell.
-  **Recommend the spreadsheet as the manual step and `depthharm()` as the
-  scale-up**, rather than the other way round.
-
-### Incorporation of Ground Data → steps 5, 6, 9, 10 — **largest gap**
-
-**Methods:** *"Ground data are spatially modelled using methods appropriate to the
-quantity and distribution of available samples … Kriging … IDW … or simple
-extrapolation within defined strata."*
-
-**Code does:** none of these. Step 5 explicitly says *"Do NOT interpolate the
-residuals in Version 1."* Step 6 goes straight to Random Forest.
-
-- **B1** Three named methods, zero implemented. Either implement one (IDW is ~15
-  lines with `gstat::idw()` and is the natural workshop choice), or narrow the
-  Methods to say Random Forest is the Version 1 spatial model and kriging/IDW are
-  alternatives for later.
-- **C1** The Methods order is *ground data → spatial model → update prior → RF
-  downscale*. The code order is *RF on ground data → update prior using the RF
-  surface*. In the code RF fills **both** roles the Methods assigns to two
-  different stages. This is the single decision that most changes the shape of
-  the workshop.
-
-**Methods:** *"The relative influence … determined through weighting based on: the
-estimated precision of the prior map; the uncertainty associated with ground
-observations; sample variance; and the number and distribution of available
-samples."*
-
-**Code does [verified]:** `bayesian_update_normal(prior_mean, prior_sd,
-evidence_mean, evidence_sd)` — precision-weighted averaging on two SDs.
-Reproduces the worked example exactly: 150 ± 30 with 170 ± 20 → **163.85 ± 16.64**.
-
-- **A3** Of the four stated weighting inputs, only *prior precision* is present as
-  named. Ground-observation uncertainty never enters the function signature.
-  Sample variance is not used. Sample count is not used.
-- **A2 — the serious one.** `predict_regional_raster()` sets **every pixel's**
-  `regional_sd` to the model's CV RMSE. There is no `σ/√n`. The posterior SD is
-  therefore *independent of how many cores were collected*. The Introduction's
-  central promise — "determine the number of field samples required to achieve a
-  user-defined level of accuracy" — cannot be delivered by this update as written,
-  because collecting 10 more cores changes the posterior SD only through whatever
-  it does to the CV RMSE, which can move in either direction.
-- **A1 — the other serious one.** `scripts/run_06` fits
-  `observed ~ ndvi + elevation + slope + prior`. The prior is a **predictor**.
-  Steps 9–10 then combine that model's output with the prior *as if the two were
-  independent sources of information*. They are not: the prior is inside the
-  evidence. Precision adds (`1/σ²_post = 1/σ²_prior + 1/σ²_eff`), so the posterior
-  SD comes out **too small** and the map looks more certain than it is. Options:
-  drop `prior` from the RF formula, or update against the RF **residual** surface
-  instead of the RF prediction.
-
-### Spatial Modelling and Downscaling → step 6, bridge, step 11
-
-**Methods:** *"The updated carbon estimates are then modelled at user-defined
-spatial resolutions using a Random Forest algorithm."*
-
-- **C1 (again)** "*updated* carbon estimates" places RF after the Bayesian update.
-  The code puts it before.
-- **D2 [verified]** Step 11 writes `posterior_mean_10m.tif`, `posterior_sd_10m.tif`,
-  `posterior_cv_10m.tif` regardless of the actual resolution — my test grid was
-  1 unit/pixel and still produced `_10m` filenames. Either take a `res_label`
-  argument or drop the suffix.
-- **[read-only]** `predict_regional_raster()` pulls the whole covariate stack into
-  a data.frame with `as.data.frame(..., na.rm = FALSE)`. At 30 m over a 5 590 km²
-  AOI that is ~6.2 M rows × n covariates in memory at once. Fine for the toy AOI,
-  likely to fall over on the real one — worth a tiled `terra::predict()` instead.
-
-### Validation and Uncertainty Assessment → steps 12, 13, 11, 15
-
-**Methods:** *"resampling outputs back to the spatial support of the prior
-datasets."*
-
-- **E2 — this is implemented.** `check_change_of_support()` **[verified]**:
-  `resample(posterior, prior, method = "average")`, returns the aggregated raster,
-  the difference layer, and `mean_difference` (13.99 on my test data, matching
-  step 13's `delta_mu` mean exactly — the two are consistent).
-  One note: when the fine grid nests exactly inside the coarse one,
-  `terra::aggregate(fact = …)` is the exact operation; `resample(method="average")`
-  is the right general fallback but is not identical. Worth a comment.
-
-**Methods:** *"Comparison layers are generated to identify areas of agreement and
-areas where local data have resulted in meaningful adjustments."*
-
-- Implemented as `delta_mu` and `1 - posterior_sd/prior_sd` **[verified: 13.99 and
-  0.481 mean uncertainty reduction]**.
-- **D4** "Meaningful" has no operational definition. Suggest
-  `abs(delta_mu) > 1.96 * prior_sd` (the change exceeds the prior's own noise) so
-  the comparison layer is a claim rather than a colour ramp.
-
-**Methods:** *"Areas are categorized as Green: CV more than 25% below the
-user-defined threshold; Yellow: within 25%; Red: more than 25% above."*
-
-- **B2 — not implemented.** Step 11 writes a continuous CV raster; step 15 returns
-  `cv` (a `SpatRaster` **[verified]**) and `passes` (binary). There is no
-  three-way categorisation anywhere.
-- The text is also ambiguous: "25% below the threshold" could mean
-  `CV < 0.75 × threshold` (relative) or `CV < threshold − 0.25` (absolute
-  percentage points). At a 20% threshold those are 15% and −5% — very different.
-  **This needs to be pinned down before it is coded.**
-- **A5 [verified]** `test_management_precision()` computes `posterior_sd /
-  posterior_mean` with no guard. With `posterior_mean = 0` I got **200 infinite
-  CV cells out of 400**, and `passes` contained no `NA` — the Infs simply
-  evaluate `Inf < 0.20` → `FALSE`. Worse: a **negative** posterior mean gives a
-  **negative** CV, and `negative < 0.20` → `TRUE`, so a nonsensical pixel
-  **silently passes** the management threshold. Negative posterior means are
-  reachable — step 11 already writes a `lower95` layer that can go below zero.
-  Guard with `mean <= 0 → NA` before this is used to make a decision.
-
-### Sampling Recommendations → step 16
-
-**Methods:** *"identifying locations where additional observations are most likely
-to improve confidence … Optional … Neyman allocation."*
-
-- Implemented as a rank on posterior SD **[verified — returns the top-n cell
-  coordinates]**.
-- **D3 [verified]** With `z_residual` supplied, the score is
-  `posterior_sd + abs(resample(z_residual, posterior_sd))` — adding a quantity in
-  kg C/m² to a unitless z-score. Whichever has the larger numeric range dominates
-  arbitrarily. Standardise both before summing, or weight them explicitly.
-  I also passed a `z_residual` on a coarser grid and it resampled and returned
-  results **with no warning** about the support mismatch.
-- **B3** No function estimates *how many* samples are needed. This is promised in
-  the Introduction, not just as an option.
-- **B4** Neyman allocation absent — consistent with the Methods ("optional"), but
-  the Introduction's phrasing implies a delivered capability. Align one to the other.
-
-### Cross-cutting: assumptions and diagnostics
-
-- **A4** The Normal–Normal update assumes (i) Gaussian prior and likelihood,
-  (ii) independence of prior and evidence (violated — A1), (iii) known, fixed
-  variances, (iv) pixel independence when applied cell-by-cell. **None of these
-  four are stated in the Methods.** They belong in the text, not only in code
-  comments — carbon stocks are right-skewed and often better modelled lognormally,
-  which a reviewer will raise.
-- **D5** No diagnostics exist. There is no minimum-sample-size warning (the
-  framework is aimed at 5–20 plots, where `vfold_cv(v = 5)` leaves 1–4
-  observations per fold and RMSE is extremely unstable), no residual normality
-  check to justify the Gaussian update, and although `spatial_residual_diagnostics()`
-  can run Moran's I, it defaults to `FALSE` and **nothing downstream consumes the
-  result** — so detected autocorrelation changes nothing.
+Separately and more urgently: `A6`, the prior and the observations are not
+measuring the same quantity, and `N8` is blocking the pipeline.
 
 ---
 
-## Workshop-appropriateness
+## Step 0 — ingest and inventory
 
-| Step | Manual-first? | Verdict |
+| # | Finding | Status |
 |---|---|---|
-| 1 characterize prior | Yes — mean of 5 pixels | Ideal |
-| 2 harmonize depths | **Use the workbook, not `depthharm()`** | Spreadsheet is transparent and verified; the package is a black box |
-| 4 residuals | Yes — subtraction | Ideal |
-| 9 Bayesian update | Yes — verified 150±30 ⊕ 170±20 → 163.85±16.64 | **The centrepiece.** Hand-calculable in 4 lines |
-| 12 change of support | Yes — average 4 pixels, compare | Good |
-| 13 compare maps | Yes — one subtraction, one ratio | Ideal |
-| 15 CV / precision | Yes — one division | Ideal, once A5 is guarded |
-| 6–7 RF + CV | No — interpret only | `build_rf_workflow()` returns an *untrained* workflow, which is a subtle idea for beginners; say so explicitly |
-| 16 sample siting | Partly | Ranking is intuitive; the composite score (D3) is not |
+| N1 | `sf_as_ee()` on an `sfc` already returns an `ee$Geometry`; calling `$geometry()` raised `AttributeError` | **DONE** `14c64f5` |
+| N3 | Covariate table timed out — reducing 10 m NDVI/land cover at native scale is ~56 M px per layer × 3 calls | **DONE** `0e956ef` — one 250 m `summary_scale` |
+| N9 | `slope.tif` unreadable (`TIFFReadEncodedTile failed`) — Drive transfer reset, truncated file left in place | Worked around locally via `terra::terrain()`; **not codified** |
+| N10 | Ingest dropped partial-coverage cores, pre-empting step 2 | **DONE** `11b6ff5` — all 8 cores, all 22 layers |
+| D2 | Filenames hardcode `_10m` regardless of resolution | **OPEN** *[verified]* — `prior_mean_10m.tif` contains a **30 m** raster |
 
-Complexity is well matched overall: no step reaches for machinery it does not need,
-and the Version 1 / Version 2 split is stated honestly throughout. The mismatch is
-not that the code is too complex — it is that the **Methods text promises more
-methods than the code implements** (B1–B6), and that two statistical shortcuts
-(A1, A2) undercut the framework's headline claim.
+---
+
+## Step 1 — characterize the prior  ← **the biggest defensibility gap**
+
+| # | Finding | Status |
+|---|---|---|
+| E1 | Code separates the AOI mean from the typical pixel SD and refuses to conflate them — **better than the Methods text** | Adopt into the text |
+| D1 | Returns two scalars; the masked rasters are built then discarded, though the Methods promises pixel-level detail | **OPEN** |
+| B5 | One `prior_mean` / one `prior_sd`; nothing loops over depth intervals | **PART** |
+| **R4** | **AOI prior variance ignores spatial correlation** | **OPEN — highest-value fix** |
+| **R2** | Reducing a map to one number discards spatial structure | **OPEN** — see step 10 |
+
+**R4 in detail.** Averaging the per-pixel SD raster gives the typical uncertainty
+of *one pixel*. The code already says so and refuses to call it the uncertainty
+of the AOI mean — good. But nothing yet computes the quantity that *is* needed:
+
+```
+naive (pixels independent, too optimistic):
+    Var(mu_p) = (1/n^2) * sum_i sigma_i^2
+
+correct:
+    Var(mu_p) = (1/n^2) * ( sum_i sigma_i^2 + 2 * sum_{i<j} Cov(X_i, X_j) )
+```
+
+The practical route avoids the full covariance matrix. Fit a variogram to the
+prior surface, extract the correlation `rho`, and use an effective sample size:
+
+```
+n_eff = n / (1 + (n - 1) * rho)
+Var(mean) ~= mean(sigma^2) / n_eff
+```
+
+With 40 million strongly autocorrelated pixels, `n_eff` may be in the hundreds.
+That is the difference between an AOI uncertainty that is absurdly small and one
+a reviewer will accept. `gstat` is already a dependency, so this is a contained
+addition to `characterize_prior()` — and it is the single change that most
+strengthens the paper.
+
+---
+
+## Step 2 — harmonize depths
+
+| # | Finding | Status |
+|---|---|---|
+| N4 | `depthharm()` failed ("differing number of rows: 8, 22"); splining a concentration also does not conserve mass | **DONE** `d6ba76c` — overlap weighting in base R, reproduces sheet 4 exactly *[verified]* |
+| B5 | Multi-depth support | **PART** — now 0–15 / 15–30 / 30–50 / 50–100 plus exponential extrapolation to 100 cm. The raster side is still single-depth |
+
+---
+
+## Steps 3–4 — extract covariates, prior vs. observed
+
+| # | Finding | Status |
+|---|---|---|
+| N2 | `[crop] extents do not overlap` — AOI in degrees, rasters in projected metres; `crop()` does not reproject | **DONE** `dbc67cc` |
+| N5 | `bias`/`mae`/`rmse` all `NA` — the peat prior is NoData over mineral ground | **DONE** `2aba93e` — counted and reported, not hidden with `na.rm` |
+| **A6** | **Prior and observations are on different depth bases** | **OPEN — largest open item** |
+
+**A6, measured rather than suspected:**
+
+```
+observed (0-30 cm cores)   mean  8.63 kg C/m2
+prior at the plots               44-48 kg C/m2
+bias = -36.78    mae = 36.78    rmse = 37.62
+z_residual = -1.2 to -1.9 at EVERY plot, same sign
+```
+
+MAE equals |bias| to two decimals — the error is almost pure offset, not scatter.
+A Normal–Normal update cannot see a systematic offset as anything but evidence to
+be averaged, so it will pull the ground data toward a prior measuring a different
+quantity, and the posterior will be **precise and wrong** wherever the prior
+dominates. Converting the prior by peat thickness (30 / 184 cm) gives ≈10.5
+kg C/m² against the cores' 8.63 — within 22%, versus 4–5× raw.
+
+This is also `R6`: *support must match the question, not the raster resolution.*
+Decide the estimand first — regional mean, or pixel value — and make both the
+prior and the field data estimate that same thing.
+
+---
+
+## Step 5 — spatial residuals
+
+| # | Finding | Status |
+|---|---|---|
+| D5 | Moran's I existed but defaulted off, and nothing consumed the result | **PART** — now guarded by n (skips below 5 residuals; variogram below 15), `k = floor((n-1)/3)`. Still nothing downstream acts on it |
+| B1 | Kriging / IDW / strata extrapolation — three named in the Methods, none implemented | **DECIDE** |
+| **R2** | Residual interpolation is the defense against "you destroyed the spatial structure" | **OPEN** |
+
+**R2 in detail.** This is the answer to *"you reduced a map to one number"*, and it
+is the same work as `B1`:
+
+```
+r_i = observed_i - predicted_i          # residuals at plots
+R(x,y) = interpolate(r_i)               # kriging / IDW / GP / spline
+Posterior(x,y) = Prior(x,y) + R(x,y)
+```
+
+Original gradients retained, local bias corrected. **The cost is that it requires
+the residuals to be spatially autocorrelated** — if they are random, the
+correction surface is noise. Your current evidence: Moran's I = 0.277, p = 0.034,
+but on 7 points with k = 2. Suggestive, not conclusive; I would not commit a
+spatial model on it.
+
+Note this also resolves `C1` (the ordering question): residual interpolation *is*
+"model the ground data spatially, then adjust the prior", which is the order your
+Methods describes.
+
+---
+
+## Steps 6–8 — build, validate, compare
+
+| # | Finding | Status |
+|---|---|---|
+| A1 | `prior` was an RF predictor *and* the prior in the update — counted twice | **DONE** `47cd9f2` |
+| N6 | "argument is of length zero", every fold — parsnip treats explicit `mtry = NULL` as *supplied* → `min_cols(NULL, x)` | **DONE** `a36bc71` — **latent, would fail at any n** |
+| D5 | `v = 5` on 8 plots left 1–2 per fold | **PART** — `v` capped, `rsq` dropped when unestimable |
+| E3 | Step 8's "stop if the RF does not beat the prior" gate | Good practice — add to the text |
+| **R1** | **Prior and evidence are not independent even now** | **OPEN** |
+
+**R1 in detail.** `A1` fixed the egregious case. The deeper objection survives:
+even with field plots excluded from training, both the prior and the evidence
+depend on climate, terrain, soils and landscape context, so `Cov(mu_p, mu_e) > 0`.
+The standard update assumes it is zero and is therefore overconfident.
+
+Mitigations you already have: field plots were not in the training data, and the
+`prior` band is no longer a predictor. What is missing is quantifying the
+residual dependence. The covariance-adjusted update, with `c = rho * sigma_p * sigma_e`:
+
+```
+mu_post  = ((sigma_e^2 - c) * mu_p + (sigma_p^2 - c) * mu_e) / (sigma_p^2 + sigma_e^2 - 2c)
+Var_post = (sigma_p^2 * sigma_e^2 - c^2) / (sigma_p^2 + sigma_e^2 - 2c)
+```
+
+You cannot estimate `rho` reliably from 8 plots — so **run it as a sensitivity
+analysis** at `rho = 0, 0.25, 0.5, 0.75` and report how the posterior moves. That
+is cheap, honest, and much harder to attack than asserting independence. It is a
+small extension to `bayesian_update_normal()`, which already reduces to the
+current behaviour at `rho = 0`.
+
+---
+
+## Step 8b — bridge: model → rasters
+
+| # | Finding | Status |
+|---|---|---|
+| N8 | `tar_make()` subprocess killed — `as.data.frame()` on 40 M cells × 6 cols | **OPEN — currently blocking.** Fix: `terra::predict()`, which blocks internally |
+| **A2 / R3** | **Every pixel is assigned the same `regional_sd`, taken from the CV RMSE** | **OPEN** |
+| A1 | `run_08b` may still pass `prior` in the covariate stack | **Check** |
+
+**A2 = R3, and they are the same objection.** RMSE is average model error across
+the map; it is not `Var(X_i)` for any individual pixel. Two consequences:
+
+- the posterior SD is **insensitive to sample size** — collecting 10 more cores
+  does not tighten it, which contradicts the Introduction's promise to determine
+  how many samples are needed;
+- uncertainty does not grow away from the data, so the map claims equal
+  confidence everywhere.
+
+Options, cheapest first:
+- `ranger` with `keep.inbag = TRUE`, then `predict(type = "se")` — per-pixel SE
+  in **feature** space. Already a dependency.
+- kriging variance from `gstat` — per-pixel variance in **geographic** space,
+  which grows with distance from samples. Already a dependency. This is what you
+  described wanting in A3.
+- `CAST::aoa()` — flags where the model is extrapolating. New dependency.
+
+`A3` (weight by prior precision, ground uncertainty, sample variance, and n) is
+the same work: with a spatially varying evidence SD, `sigma_e^2 = s^2 / m` falls
+out naturally and the `1/sqrt(n)` behaviour appears.
+
+---
+
+## Steps 9–10 — the Bayesian update
+
+| # | Finding | Status |
+|---|---|---|
+| N7 | Posterior had holes wherever the prior was NoData (`1/NA^2` propagates) | **DONE** `3ad85a5` — zero precision, so the posterior is the evidence there *[verified]* |
+| A4 / **R5** | Normality never declared | **PART** — the four assumptions are in README §6, still absent from your Methods |
+| **R1** | Covariance-adjusted update | **OPEN** — see steps 6–8 |
+| **R2** | `Posterior = Prior + R(x,y)` | **OPEN** — see step 5 |
+
+**R5.** The defense is sound and worth stating explicitly: the estimand is an AOI
+*mean*, and by the CLT a mean tends to normal even when the underlying variable
+is skewed — which soil carbon certainly is. Back it with a diagnostic comparing
+normal / log-normal / gamma; the posterior means will likely be close, and having
+checked is what matters.
+
+---
+
+## Steps 11–13 — export, change of support, compare
+
+| # | Finding | Status |
+|---|---|---|
+| E2 | `check_change_of_support()` — you asked whether this was implemented. **It is** | *[verified]* |
+| A5 | CV divides by `posterior_mean` with no guard | **OPEN** — `Inf` at mean 0, and a **negative mean silently passes** the threshold |
+| B2 | Green / yellow / red categories | **OPEN** — and "25%" is still ambiguous: relative (`CV < 0.75 x threshold`) or percentage points (`CV < threshold - 0.25`)? At a 20% threshold those are 15% and −5% |
+| D4 | "meaningful adjustments" has no threshold | **OPEN** — suggest `abs(delta_mu) > 1.96 * prior_sd` |
+| **R6** | Support must match the question | **OPEN** — see `A6` |
+
+---
+
+## Steps 15–16 — precision and next samples
+
+| # | Finding | Status |
+|---|---|---|
+| B6 | Precision gap should be mapped *before* sampling; currently runs at step 15 on the posterior | **OPEN** |
+| B3 | Required sample size for a target precision | **OPEN** — depends on `A2` |
+| B4 | Neyman allocation | **OPEN** (Methods says optional; the Intro implies more) |
+| D3 | `posterior_sd + abs(z_residual)` adds kg C/m² to a unitless z-score | **OPEN** *[verified — runs silently, and resamples across mismatched grids without warning]* |
+
+---
+
+## New stage — calibration validation (`R7`)
+
+Not in the Methods and not in the code, and it is the strongest single thing you
+could add to the paper. Hold out AOIs, then check:
+
+```
+Z = (mu_field - mu_posterior) / sqrt(Var_field + Var_posterior)
+```
+
+If the uncertainty is honestly quantified, `Z ~ N(0,1)`. If `Z` is too wide, you
+are overconfident — which is exactly what `R1`, `R3` and `R4` predict. This turns
+"we propagated uncertainty" from an assertion into a testable claim, and it is
+the direct empirical answer to every criticism above.
+
+---
+
+## Suggested order of work
+
+1. **`N8`** — unblock the pipeline (`terra::predict()`).
+2. **`A6`** — decide the estimand and put prior and observations on the same
+   depth basis. Nothing downstream means anything until this is settled.
+3. **`A5`** — ten-minute guard, and it currently lets nonsense pass a management
+   threshold.
+4. **`R4`** — effective sample size in step 1. Highest defensibility gain per
+   line of code.
+5. **`A2`/`R3`** — per-pixel evidence uncertainty. Unlocks `A3`, `B3`, `B6`.
+6. **`R1`** — `rho` sensitivity analysis in the update.
+7. **`R2`/`B1`** — residual interpolation, once there are enough plots to justify
+   it.
+8. **`R7`** — calibration validation.
+
+Items 4–8 are what turn this from a weighted average into a defensible
+data-fusion method.
