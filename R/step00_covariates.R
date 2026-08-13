@@ -197,6 +197,8 @@ covariate_table <- function(aoi_ee,
 build_aoi_stack <- function(aoi_ee,
                             prior_mean_asset = "projects/ee-cathalpdoherty2/assets/McMasterCarbon30mkgm2version1",
                             prior_sd_asset   = "projects/ee-cathalpdoherty2/assets/McMasterUncertaintyCarbon30mkgm2",
+                            fill_prior_asset = "projects/ee-cathalpdoherty2/assets/McMaster_WWFCanada_soil_carbon30cm",
+                            fill_prior_sd    = 18.74,
                             imgs = NULL) {
   library(rgee)
   if (is.null(imgs)) imgs <- covariate_images(aoi_ee)
@@ -208,6 +210,25 @@ build_aoi_stack <- function(aoi_ee,
 
   pm <- pm$select(0)$rename("prior_mean")
   ps <- ps$select(0)$rename("prior_sd")
+
+  # The peat prior is NoData over mineral ground and open water -- 2 of the 8
+  # field plots fall in that gap. Fill it with Sothe 0-30 cm: average the two
+  # where both exist, and take Sothe alone where the peat layer is absent.
+  # ee$ImageCollection$mean() does exactly this, because it ignores masked
+  # pixels per pixel rather than propagating the mask.
+  if (!is.null(fill_prior_asset) && nzchar(fill_prior_asset)) {
+    fill <- ee_image_clipped(fill_prior_asset, aoi_ee)
+    if (!is.null(fill)) {
+      fill <- fill$select(0)$rename("prior_mean")
+      pm <- ee$ImageCollection(list(pm, fill))$mean()$rename("prior_mean")
+
+      # There is no 0-30 cm uncertainty layer in the catalogue, so where the
+      # peat SD is absent it falls back to a constant -- the AOI spatial SD of
+      # Sothe 0-30 cm from table 1. Stated, not derived: it does NOT represent
+      # the disagreement between the two products, which is large.
+      ps <- ps$unmask(fill_prior_sd)$rename("prior_sd")
+    }
+  }
 
   pm$
     addBands(ps)$
