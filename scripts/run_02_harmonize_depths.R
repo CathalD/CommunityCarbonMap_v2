@@ -1,14 +1,16 @@
 source("R/step02_harmonize_depths.R")
 
-soil_data <- read.csv("data/soil_cores_raw.csv")
-
-# harmonize_core_depths() promotes soil_data to an aqp::SoilProfileCollection
-# before calling depthharm() -- see R/step02_harmonize_depths.R for why.
-# Still worth checking the harmonized output against a hand calculation on
-# one core before trusting it (the workshop's Step 2 worked example: core 1,
-# 0-15 cm target -> 35 Mg C/ha from the raw 0-10 and 10-25 layers).
+soil_data  <- read.csv("data/soil_cores_raw.csv")
 harmonized <- harmonize_core_depths(soil_data)
 
 dir.create("outputs", showWarnings = FALSE)
 write.csv(harmonized, "outputs/soil_cores_harmonized.csv", row.names = FALSE)
-head(harmonized)
+print(harmonized)
+
+# Check against the spreadsheet: summing the 0-15 and 15-30 stocks for a core
+# must reproduce its 0-30 cm value on sheet 4 of
+# data/soil_carbon_calculation.xlsx. If they disagree, the spreadsheet is right.
+shallow <- harmonized[harmonized$bottom <= 30, ]
+totals <- tapply(shallow$stock_kg_m2, shallow$plot_id, sum, na.rm = TRUE)
+cat("\n0-30 cm stock by core (kg C/m2), compare to sheet 4:\n")
+print(round(totals, 3))
