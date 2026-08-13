@@ -19,3 +19,5 @@ outputs/*
 # renv, if/when it gets added
 renv/library/
 renv/staging/
+
+# diagnostics/ IS tracked on purpose -- small text summaries pushed for review
