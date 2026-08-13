@@ -14,6 +14,11 @@
 characterize_prior <- function(prior_mean, prior_sd, aoi) {
   library(terra)
 
+  # crop() does not reproject -- a CRS mismatch surfaces as the confusing
+  # "[crop] extents do not overlap". The AOI is supplied in degrees while the
+  # downloaded rasters are in projected metres, so align it first.
+  if (!same.crs(aoi, prior_mean)) aoi <- project(aoi, crs(prior_mean))
+
   pm <- mask(crop(prior_mean, aoi), aoi)
   ps <- mask(crop(prior_sd, aoi), aoi)
 
