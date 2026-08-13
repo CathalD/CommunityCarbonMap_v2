@@ -14,18 +14,36 @@ spatial_residual_diagnostics <- function(field_sf, run_moran = FALSE, run_variog
     geom_sf(aes(colour = residual)) +
     scale_colour_gradient2(low = "#2F5233", mid = "grey90", high = "#93392A")
 
-  out <- list(plot = p)
+  # Plots with a NoData prior have no residual; the spatial tests below cannot
+  # accept them, and silently passing NA into moran.test() just errors deeper in.
+  ok <- is.finite(field_sf$residual)
+  usable <- field_sf[ok, ]
+
+  out <- list(plot = p, n_usable = sum(ok), n_dropped = sum(!ok))
 
   if (run_moran) {
-    library(spdep)
-    nb <- knn2nb(knearneigh(sf::st_coordinates(field_sf), k = 4))
-    lw <- nb2listw(nb)
-    out$moran <- moran.test(field_sf$residual, lw)
+    if (nrow(usable) < 5) {
+      out$moran <- paste0("skipped: ", nrow(usable),
+                          " usable residuals is too few for Moran's I")
+    } else {
+      library(spdep)
+      # k must stay well under n or the neighbour graph is nearly complete and
+      # the test is meaningless.
+      k <- max(1, min(4, floor((nrow(usable) - 1) / 3)))
+      nb <- knn2nb(knearneigh(sf::st_coordinates(usable), k = k))
+      out$moran <- moran.test(usable$residual, nb2listw(nb))
+      out$moran_k <- k
+    }
   }
 
   if (run_variogram) {
-    library(gstat)
-    out$variogram <- variogram(residual ~ 1, data = field_sf)
+    if (nrow(usable) < 15) {
+      out$variogram <- paste0("skipped: ", nrow(usable),
+                              " usable residuals is too few to fit a variogram")
+    } else {
+      library(gstat)
+      out$variogram <- variogram(residual ~ 1, data = usable)
+    }
   }
 
   out
