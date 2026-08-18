@@ -10,6 +10,10 @@ scaled up in R.** If the R output and the hand calculation disagree, the hand
 calculation is right and the code is wrong.
 
 - Full walkthrough (concept → worked example → R): **[docs/workshop.html](docs/workshop.html)**
+  (still describes the Random Forest at steps 6–8, which the tier ladder has
+  replaced — a full pass over the workshop text is pending)
+- The model tier ladder, and which tier this dataset supports:
+  **[docs/step14_model_ladder.md](docs/step14_model_ladder.md)**
 - How the code lines up with the Methods text, and where it doesn't:
   **[docs/code_vs_methods_review.md](docs/code_vs_methods_review.md)** — read this
   before teaching from the code.
@@ -30,16 +34,16 @@ seeing the code.
 | — extract prior + covariates at plots | — | `extract_prior_covariates()` | `run_03_extract_covariates.R` |
 | — residuals, bias, model performance | **manual**: `observed − prior`, then RMSE of 5 numbers | `compare_prior_observed()` | `run_04_compare_prior_observed.R` |
 | — where is the prior wrong? | look at the map | `spatial_residual_diagnostics()` | `run_05_spatial_residuals.R` |
-| **Incorporation of ground data** — spatial model | interpret only | `build_rf_workflow()` | `run_06_build_regional_workflow.R` |
-| — validate | interpret only | `validate_rf_workflow()` | `run_07_validate_regional_workflow.R` |
-| — is the model beating the prior? | **manual**: compare two RMSEs | `compare_prior_vs_model()` | `run_08_compare_prior_vs_model.R` |
-| — (plumbing: model → rasters) | — | `predict_regional_raster()` | `run_08b_predict_regional_raster.R` |
+| **Incorporation of ground data** — pick a model tier | **manual**: count parameters against n | `tier_recommendation()` | `run_14_model_ladder.R` |
+| — Tier 0: area-wide estimate | **manual**: precision-weighted average of two numbers | `tier0_area_update()` | `run_14_model_ladder.R` |
+| — Tier 1: is the prior biased? | **manual**: fit a line through 8 points | `tier1_calibration()` | `run_14_model_ladder.R` |
+| — Tiers 2–4: covariates, GP, melding | interpret only | `tier_model_set()` · `fit_tier_models()` | `run_14_model_ladder.R` |
+| — compare the candidates | interpret only | `compare_tier_models()` · `manual_loo()` | `run_14_model_ladder.R` |
 | — weight prior against ground data | **manual**: precision-weighted average of two numbers | `bayesian_update_normal()` | `run_09_bayesian_update.R` |
 | **Spatial modelling & downscaling** — apply at every pixel | — | `bayesian_update_raster()` | `run_10_bayesian_update_raster.R` |
 | — ship the map | — | `export_posterior_products()` | `run_11_export_posterior.R` |
 | **Validation & uncertainty** — back to prior support | **manual**: average 4 fine pixels, compare to 1 coarse | `check_change_of_support()` | `run_12_check_change_of_support.R` |
 | — comparison layers | **manual**: one subtraction, one ratio | `compare_prior_posterior_maps()` | `run_13_compare_maps.R` |
-| — *(spatial Bayes — roadmap only, no code)* | — | — | — |
 | — CV and the management threshold | **manual**: `SD ÷ mean` | `test_management_precision()` | `run_15_management_precision.R` |
 | **Sampling recommendations** — where next | **manual**: rank 5 cells by SD | `propose_next_sample_sites()` | `run_16_propose_sample_sites.R` |
 
