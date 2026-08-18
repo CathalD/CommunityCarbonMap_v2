@@ -88,8 +88,9 @@ compare_tier_models <- function(fits, diagnostics = NULL) {
   out$bad_pareto_k <- bad_k[out$model]
   out$n_obs <- n_obs[out$model]
 
-  arch <- attr(fits, "architecture")
-  out$architecture <- if (is.null(arch)) NA_character_ else arch[out$model]
+  # which downstream path the winner implies -- looked up by name, because
+  # subsetting the fit list would drop an attribute
+  out$architecture <- unname(model_architecture(out$model))
 
   if (!is.null(diagnostics)) {
     out$sampling_ok <- diagnostics$passes[match(out$model, diagnostics$model)]

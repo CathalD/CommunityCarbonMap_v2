@@ -113,23 +113,32 @@ tier_model_set <- function(covariates = c("ndvi", "elevation", "slope"),
     t1_prior          = f("1 + prior_std"),
     t2_prior_cov      = f(paste(c("1", "prior_std", cov_std), collapse = " + "))
   )
-  architecture <- c(t0_intercept = "reference",
-                    t2_covariates = "prior-as-prior",
-                    t1_prior = "prior-as-covariate",
-                    t2_prior_cov = "prior-as-covariate")
-
   if (use_gp) {
     specs$t3_gp_nopriorcov <- f(paste(c("1", cov_std, "gp(x_std, y_std)"),
                                       collapse = " + "))
     specs$t3_gp_priorcov   <- f(paste(c("1", "prior_std", cov_std,
                                         "gp(x_std, y_std)"), collapse = " + "))
-    architecture <- c(architecture,
-                      t3_gp_nopriorcov = "prior-as-prior",
-                      t3_gp_priorcov   = "prior-as-covariate")
   }
-
-  attr(specs, "architecture") <- architecture[names(specs)]
   specs
+}
+
+#' Which architecture does each model belong to?
+#'
+#' A lookup rather than an attribute on the list: subsetting a list drops its
+#' attributes silently, so `specs[c("a","b")]` or dropping a model that failed
+#' to fit would lose the tagging exactly when it is needed.
+model_architecture <- function(model_names) {
+  lookup <- c(
+    t0_intercept     = "reference",          # no prior at all
+    t2_covariates    = "prior-as-prior",     # independent evidence -> steps 9-10
+    t3_gp_nopriorcov = "prior-as-prior",
+    t1_prior         = "prior-as-covariate", # fit IS the posterior -> skip 9-10
+    t2_prior_cov     = "prior-as-covariate",
+    t3_gp_priorcov   = "prior-as-covariate"
+  )
+  out <- unname(lookup[model_names])
+  out[is.na(out)] <- "unknown"
+  stats::setNames(out, model_names)
 }
 
 #' Fit every candidate. Failures are captured, not fatal -- one model that will
@@ -146,6 +155,5 @@ fit_tier_models <- function(specs, data, ...) {
       }
     )
   }
-  attr(fits, "architecture") <- attr(specs, "architecture")
   fits[!vapply(fits, is.null, logical(1))]
 }
