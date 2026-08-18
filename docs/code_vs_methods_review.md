@@ -271,6 +271,88 @@ the direct empirical answer to every criticism above.
 
 ---
 
+## Version 2 — hierarchical spatial fusion (INLA / SPDE)
+
+Already on the roadmap: the workshop's Step 14 is *"don't implement the advanced
+Bayesian model yet"*, and `README` §6 names `brms` / `INLA` / `inlabru` as
+Version 2. So yes, considered — and the proposed fusion workflow is exactly what
+the defensibility section above says this framework converges toward. It closes
+`R1`, `R2`, `R3` and `R4` in one model rather than four patches:
+
+| Criticism | How the SPDE model answers it |
+|---|---|
+| `R1` prior/evidence dependence | No "combine two independent estimates" step exists, so the assumption is never made |
+| `R2` spatial structure lost | The spatial random field *is* the residual surface, estimated rather than interpolated post hoc |
+| `R3` RMSE is not a variance | Posterior variance is produced per pixel, natively |
+| `R4` spatial correlation in the AOI mean | The SPDE range parameter is the correlation length, estimated from data |
+
+### The best idea in it, and it is cheap enough for Version 1
+
+`prior_trend = df_fused$prior_pred` enters as a **fixed effect with an estimated
+coefficient**. That is a bigger change than it looks: the prior stops being a
+Bayesian prior and becomes a covariate. The model then *estimates* how much to
+trust it. If the prior runs 4× high, the coefficient shrinks and the intercept
+absorbs the offset — which means **`A6` is handled automatically** instead of
+requiring a depth-basis conversion decided in advance.
+
+**But this forces an architectural choice, and it is `C1` in a new guise.** There
+are two coherent designs and you must pick one:
+
+- **(a) Prior as prior.** Do not use it as a predictor. Combine it with
+  independent evidence through the Normal–Normal update. Requires the `R1`
+  covariance correction and an explicit `A6` depth-basis fix.
+- **(b) Prior as covariate.** Regress the observations on it, let the data set
+  the coefficient, and take the spatial field as the correction. No separate
+  update step. Handles bias and dependence structurally. This is regression
+  kriging, and it is what the INLA sketch does.
+
+Doing both is precisely finding `A1`. Version 1 currently does (a).
+
+### Why the sketch cannot run as written, today
+
+- **Step 2 of the proposed workflow is impossible here.** It says *"fit the
+  covariance model using the original ground points"* — but Table 3 returned
+  **zero** profiles inside the AOI from WoSIS, CanPeat and the combined
+  collection. There are no original ground points to fit a variogram to. The
+  spatial range would have to come from the prior raster's own variogram (which
+  is the `R4` work, reused) or from strong PC priors.
+- **n = 8 does not identify a spatial range.** With 8 points the SPDE range and
+  nugget are effectively set by `prior.range` / `prior.sigma`, not learned. That
+  is legitimate Bayesian practice, but it must be stated as such, and the result
+  is a sensitivity analysis over those priors rather than an estimate.
+- **Do not feed the extrapolated depths to the likelihood.** Only 0–15 and 15–30
+  are measured; 30–50 and 50–100 come from the step-2 exponential curve. Passing
+  them in as observations makes the model re-learn a decay curve you imposed —
+  circular, and it will look like a confident 3D result.
+- **`AR1` across depth assumes equal spacing.** The intervals are 15, 15, 20 and
+  50 cm. Use `rw1`/`rw2` on the interval midpoints, or model depth continuously.
+- **`ee_monitoring_extract()` does not exist in rgee.** It looks like a conflation
+  of `ee_monitoring()` (task polling) and `ee_extract()` (the actual extraction
+  function). Step 3 in this repo already does that extraction locally with
+  `terra::extract()`, so the GEE round trip is unnecessary.
+- **`weight_precision = 0.5` for community data is arbitrary, and backwards.** It
+  halves the precision of exactly the observations being fused in. If community
+  measurement error is genuinely larger, it should come from the workbook's own
+  error budget, not a hardcoded constant.
+- **Change of support is named but not implemented** in the sketch. Point cores
+  against 30 m pixels is a real mismatch; the SPDE framework can integrate the
+  field over the pixel footprint, but that has to be written.
+
+### Recommendation
+
+Keep Version 1 as the workshop deliverable — the value of the workshop is that
+every step is hand-checkable, and an INLA mesh is not. Then:
+
+1. **Now, cheap:** adopt *prior as covariate with an estimated coefficient*
+   (design (b)) in Version 1. It is an `lm()`, it fixes `A6` without a
+   depth-basis argument, and it makes the `A1` question moot.
+2. **Once `R4`'s variogram exists:** the range parameter it produces is the same
+   quantity the SPDE needs, so that work is not thrown away.
+3. **Once there are 30+ cores, or ground points inside the AOI:** move to INLA,
+   with `R7`'s calibration check as the acceptance test.
+
+---
+
 ## Suggested order of work
 
 1. **`N8`** — unblock the pipeline (`terra::predict()`).
