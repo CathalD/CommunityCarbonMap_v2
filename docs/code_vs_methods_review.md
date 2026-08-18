@@ -353,6 +353,23 @@ every step is hand-checkable, and an INLA mesh is not. Then:
 
 ---
 
+## Data to borrow before adding complexity
+
+The binding constraint on every model tier is n = 8, and the cheapest fix is
+borrowing open data rather than collecting more cores. Tracked here so it does
+not get lost behind the modelling work.
+
+| # | Source | Status |
+|---|---|---|
+| G1 | **Hudson & James Bay Lowlands peat profiles** | Exist, and are the obvious first source. **But they trained the prior**, so using them as evidence puts the prior inside the likelihood — exactly `R1`. Must be run as a **separate, clearly-labelled comparison**, never pooled with the community cores in the same update. Decided: keep independent |
+| G2 | `wosis_layers_canada`, `peat_profiles`, `combined_profiles` | Queried: **0 inside the AOI**. Only reachable by extending the modelling domain beyond the AOI boundary — a scope decision, not a code change |
+| G3 | AAFC NPDB | Catalogue states zero mineral pedons in the Hudson & James Bay Lowlands. Dead end for this AOI |
+| G4 | OGS Riley peat-depth dataset | Not in the repo; availability may require a request to OGS. Peat **depth**, not carbon — useful for `A6`'s thickness conversion rather than as model evidence |
+| G5 | Extend the modelling domain past the AOI | The only realistic route to a sample size that supports Tiers 3–4. Trades statistical power against "is this still our region?" — a community-governance question as much as a statistical one |
+
+**Rule to keep:** borrow data before adding model structure. A tier that the
+sample size cannot support does not become defensible by being implemented.
+
 ## Suggested order of work
 
 1. **`N8`** — unblock the pipeline (`terra::predict()`).

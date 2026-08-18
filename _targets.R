@@ -70,6 +70,8 @@ list(
     md <- extract_prior_covariates(
       field_raw, rast(prior_mean_10m_file), rast(prior_sd_10m_file), covariates
     )
+    # depth-harmonized 0-30 cm stock, not the workbook per-core total
+    md <- attach_harmonized_observed(md, harmonized_cores)
     writeVector(md, "outputs/modelling_dataset.gpkg", overwrite = TRUE)
     "outputs/modelling_dataset.gpkg"
   }, format = "file"),
