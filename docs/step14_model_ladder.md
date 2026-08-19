@@ -84,6 +84,67 @@ Two traps the check accounts for:
   learns from locations, so Tiers 3–4 are judged against location count.
 - `prior` is missing at one plot, so any tier using it drops to n = 7.
 
+## Results — first real run
+
+`tar_make()`, Fort Severn, 8 cores. Harmonized `observed` confirmed in place
+(PM-01-A reads 5.204, not the workbook's 3.058).
+
+### Tier 0 — the reportable result
+
+```
+prior       43.80 +/- 26.53 kg C/m2
+evidence     7.53 +/-  1.27   (SE of the mean, n = 8; raw SD 3.59)
+POSTERIOR    7.61 +/-  1.27   CV 16.6%
+weight on the prior: 0.23%
+```
+
+**The community's own cores are the estimate.** The prior moves the mean by
+0.08 kg C/m² — about 1%. And at CV 16.6% this already passes a 20% management
+threshold (step 15), so an area-wide answer exists without the national
+product contributing anything.
+
+### Tier 1 — the prior carries no local signal
+
+```
+observed = 19.72 - 0.282 x prior     R2 = 0.19, sigma = 3.78, n = 7
+slope 95% CI: -0.951 to 0.387        excludes 1
+rho(prior, observed) = -0.436        95% CI -0.895 to 0.472, n = 7
+```
+
+Three independent lines agree: a prior weight of 0.23%, a fitted slope that is
+**negative** rather than 1, and a negative correlation. The prior does not
+track local variation in this AOI. The CIs are wide enough at n = 7 that none
+of these is individually conclusive — but none points the other way either, and
+the absence of any detectable *positive* relationship is the finding.
+
+This is not a failure of the framework. It is the framework working: the update
+is supposed to down-weight a prior the local data contradicts, and it did.
+
+### Three caveats that qualify the headline number
+
+1. **The cores are clustered, so 1.27 is optimistic.** `s/sqrt(n)` assumes a
+   random sample of the AOI. The eight cores span a convex hull of **110 km² —
+   2.0% of the 5 590 km² AOI**, all in one corner. The SE describes the mean of
+   *that neighbourhood*, not of the AOI. Extrapolating it AOI-wide is a
+   design-based assumption, and the honest version needs either spatial
+   weighting or a restricted reporting area.
+2. **`prior_sd` may be a 90% interval width, not an SD** (finding R4). If so
+   the correct σ is 26.53 / 3.29 = 8.06, the prior weight rises 0.23% → 2.4%,
+   and the posterior mean moves 7.61 → 8.41. Still core-dominated, but a 10%
+   shift — worth resolving before reporting.
+3. **Two cores are partly modelled.** PM-01-A covers 48% of 0–30 cm and
+   PM-02-A 69%; the rest comes from step 2's decay curve (2.15 and 0.21
+   kg C/m² respectively).
+
+### A bug this run exposed
+
+`FS-04` has **`prior = NaN` but `prior_sd = 18.74`** — an uncertainty for a
+pixel with no estimate. `build_aoi_stack()` fills the SD with `unmask()`
+everywhere, while the mean comes from `ImageCollection$mean()`, which stays
+masked where both products are absent. The fill needs to be conditioned on the
+combined mean existing. Consequence today: `prior_mean` averages 7 values while
+`prior_sd` averages 8.
+
 ## What is deferred, and what would change it
 
 **Tier 4 is implemented in shape but not fitted.** It needs roughly 110
