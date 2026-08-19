@@ -15,9 +15,8 @@ exactly where more sampling would help most.
 **This README is the quick start only.** The concepts, the math, and worked
 examples (by hand, then in R) live in the workshop:
 
-- **Workshop** — concept → math → hand calculation → R: `docs/workshop.html`
-  *(being rebuilt around the model tier ladder — the current copy still shows
-  the old Random Forest steps)*
+- **Workshop** — every concept as plain language → math → by-hand example →
+  R → where the code does it: `docs/workshop.html`
 - **Model tier ladder** — which analysis your sample size supports:
   `docs/model_tier_ladder.md`
 - **Methods review / to-do** — `docs/code_vs_methods_review.md`

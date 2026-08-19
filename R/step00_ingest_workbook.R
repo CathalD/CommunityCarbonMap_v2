@@ -13,10 +13,10 @@
 # Sheets 1-4 are human-facing and carry title/note/band rows above their
 # headers, hence the per-sheet `skip`.
 #
-# Everything read here is checked back against data/community_soil_cores.csv,
-# which is the raw source. CSV export writes DISPLAYED values in Excel, so a
-# formatted cell can arrive rounded; validate_workbook_ingest() is what catches
-# that, along with any hand-edit that broke a formula.
+# Everything read here is checked back against the raw slice csv the workbook
+# was built from. CSV export writes DISPLAYED values, so a formatted cell can
+# arrive rounded; validate_workbook_ingest() is what catches that, along with
+# any hand-edit that broke a formula.
 
 source_once_wb <- function(path) if (!exists("summarize_community_cores")) source(path)
 source_once_wb("R/step00_ground_data.R")
@@ -170,14 +170,14 @@ write_field_plots_from_workbook <- function(sheets, dsn = "data/field_plots.gpkg
 
 # --- validation against the raw source --------------------------------------
 
-#' Check the ingested workbook against data/community_soil_cores.csv.
+#' Check the ingested workbook against the raw slice csv it was built from.
 #'
 #' The workbook is the authority for the workshop, but it is filled in by hand
 #' and exported through a spreadsheet app, so this recomputes the 0-30 cm stock
 #' straight from the raw file and compares. A mismatch means a formula was
 #' overtyped, or the CSV export rounded a formatted cell.
 validate_workbook_ingest <- function(sheets,
-                                     raw_csv = "data/community_soil_cores.csv",
+                                     raw_csv = "data/example_soil_cores.csv",
                                      tol = 1e-3) {
   truth <- summarize_community_cores(raw_csv)$per_core
   wb <- sheets[["6"]]

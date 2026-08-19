@@ -37,7 +37,7 @@ list(
   tar_target(prior_map_file,    "outputs/prior_map_table.csv",   format = "file"),
   tar_target(covariate_file,    "outputs/covariate_table.csv",   format = "file"),
   tar_target(open_ground_file,  "outputs/open_ground_table.csv", format = "file"),
-  tar_target(community_cores_file, "data/community_soil_cores.csv", format = "file"),
+  tar_target(community_cores_file, "data/example_soil_cores.csv", format = "file"),
 
   tar_target(data_inventory, build_data_inventory(
     priors     = utils::read.csv(prior_map_file,   stringsAsFactors = FALSE),

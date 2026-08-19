@@ -21,8 +21,8 @@ covariates <- c(ndvi, dem, slope)
 modelling_data <- extract_prior_covariates(field_raw, prior_mean, prior_sd, covariates)
 
 # `observed` must be the DEPTH-HARMONIZED 0-30 cm stock, not the workbook's
-# per-core total -- otherwise the partial cores (PM-01-A stops at 14.5 cm,
-# PM-02-A at 20.7 cm) enter the model as if they were full 0-30 cm columns.
+# per-core total -- otherwise a core that stopped short of 30 cm enters the
+# model as if it were a full 0-30 cm column.
 harmonized <- harmonize_core_depths(read.csv("data/soil_cores_raw.csv"))
 modelling_data <- attach_harmonized_observed(modelling_data, harmonized)
 

@@ -34,7 +34,7 @@ aoi_ee <- aoi_to_ee(aoi)
 write_aoi_gpkg(aoi, "data/aoi.gpkg")   # run_01 and _targets.R read the .gpkg
 message(sprintf("AOI: %.0f km2", aoi_area_km2(aoi)))
 
-pts    <- load_core_points("data/community_soil_cores.csv")
+pts    <- load_core_points("data/example_soil_cores.csv")
 pts_ee <- core_points_to_ee(pts)
 message(sprintf("Core locations: %d", nrow(pts)))
 
@@ -62,7 +62,7 @@ write.csv(extracted$points, "outputs/aoi_ground_cores.csv", row.names = FALSE)
 print(ground[, c("dataset", "n_features_in_aoi", "mean", "sd", "status")])
 
 # --- 0e. the community cores, and the point layer run_03 reads ------------
-cores <- summarize_community_cores("data/community_soil_cores.csv")
+cores <- summarize_community_cores("data/example_soil_cores.csv")
 message(sprintf(
   "\nCommunity cores: %d total, %d with full 0-30 cm coverage, mean %.3f kg C/m2 (SD %.3f)",
   cores$n_cores, cores$n_full_coverage, cores$mean_kg_m2, cores$sd_kg_m2

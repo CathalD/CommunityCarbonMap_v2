@@ -14,11 +14,11 @@ extract_prior_covariates <- function(field, prior_mean, prior_sd, covariate_stac
   field$prior    <- terra::extract(prior_mean, field)[, 2]
   field$prior_sd <- terra::extract(prior_sd, field)[, 2]
 
-  # An uncertainty without an estimate describes nothing. Older exports of the
-  # prior rasters could disagree about where they have data (the SD layer was
-  # gap-filled everywhere, the mean only where a product exists), which gave
-  # FS-04 prior = NaN with prior_sd = 18.74 -- and then any average of prior_sd
-  # ran over more plots than the average of prior. Keep the two coherent.
+  # An uncertainty without an estimate describes nothing. Prior exports can
+  # disagree about where they have data (an SD layer gap-filled everywhere, a
+  # mean masked where no product exists), leaving a plot with prior = NaN but a
+  # finite prior_sd -- and then any average of prior_sd runs over more plots
+  # than the average of prior. Keep the two coherent.
   field$prior_sd[!is.finite(field$prior)] <- NA_real_
 
   cov_vals <- terra::extract(covariate_stack, field)[, -1, drop = FALSE]
@@ -29,9 +29,8 @@ extract_prior_covariates <- function(field, prior_mean, prior_sd, covariate_stac
 #
 # Without this, `observed` comes from the workbook's per-core 0-30 cm total,
 # which for a core that stopped short of 30 cm is a measured stock over a
-# shorter column -- PM-01-A reaches 14.5 cm and PM-02-A 20.7 cm. Comparing
-# those to a full 0-30 cm prior understates them, and no model can see that the
-# comparison is uneven. Step 2 is the step that exists to fix this, so the
+# shorter column. Comparing that to a full 0-30 cm prior understates it, and
+# no model can see that the comparison is uneven. Step 2 is the step that exists to fix this, so the
 # modelling dataset uses its output.
 #
 # Two caveats are carried forward as columns rather than dropped, because for

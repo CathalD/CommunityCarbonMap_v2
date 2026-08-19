@@ -8,6 +8,7 @@
 # prior-evidence correlation. That is deliberate -- see FIT_BAYES below.
 
 source("R/step07_bayesian_update.R")   # Tier 0 reuses bayesian_update_normal()
+source("R/step12_management_precision.R")  # the precision test + sample-size aid
 source("R/step06_tier_ladder.R")
 source("R/step06_fit_bayes.R")
 source("R/step06_evaluate.R")
@@ -17,6 +18,12 @@ source("R/step06_evaluate.R")
 # whether that is justified yet.
 FIT_BAYES  <- FALSE
 COVARIATES <- c("ndvi", "elevation", "slope")
+
+# Your precision target -- both numbers are yours to set (see the workshop's
+# "good enough to manage by" section). The resolution of any map you build is
+# set separately, in build_prediction_grid(cellsize = ...).
+TARGET_MARGIN     <- 0.20   # +/- 20% of the estimate
+TARGET_CONFIDENCE <- 0.80   # at 80% confidence
 
 dir.create("outputs", showWarnings = FALSE)
 
@@ -61,6 +68,22 @@ message(sprintf("  evidence   %.2f +/- %.2f  (SE of the mean, n = %d; raw SD %.2
 message(sprintf("  POSTERIOR  %.2f +/- %.2f   CV %.1f%%",
                 t0$posterior_mean, t0$posterior_sd, 100 * t0$posterior_cv))
 message(sprintf("  weight on the prior: %.1f%%", 100 * t0$prior_weight))
+
+# does the area-wide estimate meet the user's target?
+prec <- test_management_precision(t0$posterior_mean, t0$posterior_sd,
+                                  margin = TARGET_MARGIN,
+                                  confidence = TARGET_CONFIDENCE)
+message(sprintf("  target %s: margin of error %.2f (%.1f%% of the mean) -> %s",
+                prec$target, prec$margin_of_error, 100 * prec$relative_moe,
+                if (isTRUE(prec$passes)) "PASSES" else "does not pass yet"))
+if (!isTRUE(prec$passes)) {
+  plan <- cores_needed_for_target(t0$posterior_mean, t0$evidence_sd_raw,
+                                  prior_sd = t0$prior_sd,
+                                  margin = TARGET_MARGIN,
+                                  confidence = TARGET_CONFIDENCE)
+  message(sprintf("  to hit the target: ~%d cores alone, ~%d with the prior helping",
+                  plan$n_frequentist, plan$n_with_prior))
+}
 saveRDS(t0, "outputs/tier0_area_update.rds")
 
 # --- Tier 1: is the prior biased? -------------------------------------------

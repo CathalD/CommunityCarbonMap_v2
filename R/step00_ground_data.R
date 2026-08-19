@@ -203,7 +203,7 @@ open_ground_table <- function(aoi_ee,
 #' numbers and the spreadsheet ever disagree, the spreadsheet is right and this
 #' function is wrong -- that is the workshop's rule, and the reason this is
 #' written out longhand rather than read from the xlsx.
-summarize_community_cores <- function(path = "data/community_soil_cores.csv",
+summarize_community_cores <- function(path = "data/example_soil_cores.csv",
                                       target = c(0, 30)) {
   d <- utils::read.csv(path, check.names = FALSE, stringsAsFactors = FALSE)
 

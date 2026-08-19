@@ -51,7 +51,7 @@ build_data_inventory <- function(priors = NULL,
       "Area of interest", NA_real_, NA_real_, "vector",
       sprintf("polygon, %.0f km2", aoi_area_km2(aoi)),
       source = "data/aoi.geojson",
-      note = "Fort Severn study area, supplied by practitioner"
+      note = "study area polygon supplied in data/aoi.geojson"
     )
   }
 
@@ -139,7 +139,7 @@ build_data_inventory <- function(priors = NULL,
       sprintf("core / plot (%d cores, %d with full depth coverage)",
               cores$n_cores, cores$n_full_coverage),
       depth_basis = cores$depth_basis, units = "kg C/m2", coverage = NA_real_,
-      source = "data/community_soil_cores.csv via data/soil_carbon_calculation.xlsx",
+      source = "raw slice csv via data/soil_carbon_calculation.xlsx",
       note = paste0(
         "Mean and SD over full-coverage cores only. Partial cores are excluded ",
         "because a core that stops short of the target depth is not an ",

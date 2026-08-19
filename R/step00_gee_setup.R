@@ -76,10 +76,10 @@ write_aoi_gpkg <- function(aoi = load_aoi(), dsn = "data/aoi.gpkg") {
 
 # --- Core locations ---------------------------------------------------------
 
-# One point per core, from the community dataset. The longitude sign fix is the
-# same one applied on sheet 2 of data/soil_carbon_calculation.xlsx: the source
-# file supplies +87.6..+87.9 for a site that is ~87.7 degrees WEST.
-load_core_points <- function(path = "data/community_soil_cores.csv") {
+# One point per core, from the raw slice table. Longitudes are forced negative
+# (western hemisphere) -- GPS exports sometimes drop the sign, and a positive
+# longitude quietly places the cores on the other side of the planet.
+load_core_points <- function(path = "data/example_soil_cores.csv") {
   library(sf)
   d <- utils::read.csv(path, check.names = FALSE, stringsAsFactors = FALSE)
 

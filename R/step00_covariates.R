@@ -211,9 +211,9 @@ build_aoi_stack <- function(aoi_ee,
   pm <- pm$select(0)$rename("prior_mean")
   ps <- ps$select(0)$rename("prior_sd")
 
-  # The peat prior is NoData over mineral ground and open water -- 2 of the 8
-  # field plots fall in that gap. Fill it with Sothe 0-30 cm: average the two
-  # where both exist, and take Sothe alone where the peat layer is absent.
+  # The peat prior is NoData over mineral ground and open water, so field
+  # plots on mineral soil would extract nothing. Fill it with Sothe 0-30 cm:
+  # average the two where both exist, take Sothe alone where peat is absent.
   # ee$ImageCollection$mean() does exactly this, because it ignores masked
   # pixels per pixel rather than propagating the mask.
   if (!is.null(fill_prior_asset) && nzchar(fill_prior_asset)) {
@@ -227,10 +227,9 @@ build_aoi_stack <- function(aoi_ee,
       # Sothe 0-30 cm from table 1. Stated, not derived: it does NOT represent
       # the disagreement between the two products, which is large.
       #
-      # The fill is masked to where the COMBINED MEAN exists. Unmasking the SD
-      # everywhere produced pixels with an uncertainty but no estimate (FS-04
-      # extracted prior = NaN, prior_sd = 18.74), which is incoherent: an SD
-      # without a mean describes nothing.
+      # The fill is masked to where the COMBINED MEAN exists. Unmasking the
+      # SD everywhere would produce pixels with an uncertainty but no
+      # estimate, which is incoherent: an SD without a mean describes nothing.
       ps <- ps$unmask(fill_prior_sd)$updateMask(pm$mask())$rename("prior_sd")
     }
   }

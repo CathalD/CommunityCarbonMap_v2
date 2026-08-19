@@ -26,11 +26,10 @@ message("  ", write_field_plots_from_workbook(sheets, "data/field_plots.gpkg"))
 
 # The workbook is filled in by hand and exported through a spreadsheet app, so
 # check it against the raw source before anything downstream trusts it. Which
-# raw file? Pick the one whose core IDs match what the workbook holds -- the
-# tracked workbook ships with the EXAMPLE dataset (EX-xx cores), while a real
-# project's workbook matches its own raw export.
-candidates <- c("data/example_soil_cores.csv", "data/community_soil_cores.csv")
-candidates <- candidates[file.exists(candidates)]
+# raw file? Pick whichever data/*_soil_cores.csv shares the workbook's core
+# IDs -- the shipped workbook matches the example csv; a project workbook
+# matches its own raw export.
+candidates <- Sys.glob("data/*_soil_cores.csv")
 wb_ids <- unique(sheets[["6"]]$plot_id)
 raw_csv <- NULL
 for (cand in candidates) {
