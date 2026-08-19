@@ -125,17 +125,26 @@ manual_loo <- function(formula, data, id_col = "plot_id", response = "observed",
                     error = function(e) NULL)
     if (is.null(fit)) return(NULL)
 
-    pred <- brms::posterior_epred(fit, newdata = test, allow_new_levels = TRUE)
-    obs  <- test[[response]]
+    # Two different questions, two different posteriors:
+    #   epred   -- where is the MEAN of the process? (no residual scatter)
+    #   predict -- where would a NEW CORE land?      (mean + residual sigma)
+    # Coverage is about a held-out core, so the interval has to come from
+    # posterior_predict. Scoring it against the epred interval asks whether a
+    # single core equals the area average, which it never does -- that reads as
+    # a badly miscalibrated model when nothing is wrong.
+    epred <- brms::posterior_epred(fit, newdata = test, allow_new_levels = TRUE)
+    ppd   <- brms::posterior_predict(fit, newdata = test, allow_new_levels = TRUE)
+    obs   <- test[[response]]
 
     data.frame(
       plot_id      = as.character(test[[id_col]]),
       observed     = obs,
-      pred_mean    = mean(pred),
-      pred_sd      = stats::sd(pred),
-      lower95      = unname(stats::quantile(pred, 0.025)),
-      upper95      = unname(stats::quantile(pred, 0.975)),
-      model_error  = obs - mean(pred),
+      pred_mean    = mean(epred),
+      mean_sd      = stats::sd(epred),                       # uncertainty in the mean
+      pred_sd      = stats::sd(ppd),                         # uncertainty in a new core
+      lower95      = unname(stats::quantile(ppd, 0.025)),
+      upper95      = unname(stats::quantile(ppd, 0.975)),
+      model_error  = obs - mean(epred),
       # the trivial competitor: the mean of everything except this point
       baseline_pred  = mean(train[[response]], na.rm = TRUE),
       baseline_error = obs - mean(train[[response]], na.rm = TRUE),
@@ -148,15 +157,29 @@ manual_loo <- function(formula, data, id_col = "plot_id", response = "observed",
   model_mae    <- mean(abs(res$model_error))
   baseline_mae <- mean(abs(res$baseline_error))
 
+  # An intercept-only model IS the mean-only baseline, so a tie there is
+  # arithmetic, not a finding. Saying "red flag" about it sends the reader
+  # looking for a fault that does not exist.
+  rhs <- trimws(deparse(formula[[length(formula)]]))
+  intercept_only <- identical(rhs, "1")
+
   message(sprintf("\nHeld-out MAE  model %.3f  vs  mean-only baseline %.3f",
                   model_mae, baseline_mae))
-  if (model_mae >= baseline_mae) {
+  if (intercept_only) {
+    message("  The winning model is intercept-only, which is the baseline ",
+            "written as a Bayesian model -- the two MAEs agreeing is expected. ",
+            "The real finding is upstream: no candidate with covariates or ",
+            "spatial structure beat it.")
+  } else if (model_mae >= baseline_mae) {
     message("  The model does NOT beat predicting the training mean. With ",
             "real covariates and adequate n this is a red flag worth ",
             "investigating, not an expected small-n artefact.")
   }
-  message(sprintf("  95%% interval coverage: %.0f%% (%d of %d)",
+  message(sprintf("  95%% predictive-interval coverage: %.0f%% (%d of %d)",
                   100 * mean(res$within_95), sum(res$within_95), nrow(res)))
+  message("  This is the interval for a NEW CORE, so ~95% is the target. ",
+          "Well below that means the model is overconfident; well above ",
+          "means it is hedging more than the data require.")
 
   attr(res, "model_mae") <- model_mae
   attr(res, "baseline_mae") <- baseline_mae

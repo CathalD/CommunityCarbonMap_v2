@@ -137,11 +137,21 @@ if (!FIT_BAYES) {
   }
 
   # PSIS-LOO is unreliable at small n, so refit-per-fold is the real check.
-  best <- cmp$loo$model[1]
+  # Best on elpd AMONG MODELS THAT PASSED THE GATE. Taking row 1 blindly would
+  # hand the deliverable to a model the diagnostics just disqualified.
+  ranked <- cmp$loo
+  ok <- ranked[!is.na(ranked$sampling_ok) & ranked$sampling_ok, , drop = FALSE]
+  if (!nrow(ok)) stop("no model passed the sampling diagnostics", call. = FALSE)
+  best <- ok$model[1]
+  if (!identical(best, ranked$model[1])) {
+    message("\nTop of the elpd ranking (", ranked$model[1],
+            ") failed the sampling gate; using '", best, "' instead.")
+  }
+
   message("\n--- manual leave-one-out on '", best, "' + mean-only baseline ---")
   mloo <- manual_loo(specs[[best]], model_data)
-  print(mloo[, c("plot_id", "observed", "pred_mean", "model_error",
-                 "baseline_error", "within_95")])
+  print(mloo[, c("plot_id", "observed", "pred_mean", "lower95", "upper95",
+                 "model_error", "baseline_error", "within_95")])
 
   saveRDS(fits, "outputs/tier_fits.rds")
   saveRDS(cmp,  "outputs/tier_comparison.rds")
