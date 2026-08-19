@@ -64,7 +64,9 @@ fit_brms_isolated <- function(formula, data, chains = 4, iter = 4000,
 #' with its own mean/sd is a different transformation from the one the model
 #' was fitted under, and produces wrong predictions with no error raised.
 standardize_training <- function(data, vars) {
-  vars <- intersect(vars, names(data))
+  # base:: is spelled out because sessions with the `conflicted` package (or
+  # lubridate/terra attached) turn a bare intersect() into a hard error
+  vars <- base::intersect(vars, names(data))
   stats_tbl <- data.frame(
     variable = vars,
     mean = vapply(vars, function(v) mean(data[[v]], na.rm = TRUE), numeric(1)),
