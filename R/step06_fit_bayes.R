@@ -64,6 +64,16 @@ fit_brms_isolated <- function(formula, data, chains = 4, iter = 4000,
 #' with its own mean/sd is a different transformation from the one the model
 #' was fitted under, and produces wrong predictions with no error raised.
 standardize_training <- function(data, vars) {
+  # Silently skipping an absent variable is what made a missing x/y look like a
+  # brms bug ("variable x_std not found") three steps downstream, so say it here.
+  gone <- base::setdiff(vars, names(data))
+  if (length(gone)) {
+    warning("no column named ", paste(gone, collapse = ", "),
+            " -- any model formula using ", paste0(gone[1], "_std"),
+            " will fail.", if ("x" %in% gone || "y" %in% gone)
+              " (Coordinates? read the table with add_projected_coords().)",
+            call. = FALSE)
+  }
   # base:: is spelled out because sessions with the `conflicted` package (or
   # lubridate/terra attached) turn a bare intersect() into a hard error
   vars <- base::intersect(vars, names(data))
@@ -92,6 +102,34 @@ standardize_with <- function(data, stats_tbl) {
     }
   }
   data
+}
+
+# --- projected coordinates for the spatial tiers ----------------------------
+
+#' Add x / y columns in metres, for gp(x_std, y_std).
+#'
+#' A GP measures distance between points, so the coordinates must be in a CRS
+#' where distance means metres. Longitude/latitude degrees are not (a degree of
+#' longitude shrinks toward the poles), and Web Mercator metres are stretched
+#' by ~1/cos(latitude) -- at 55 N that is a 1.7x distortion, which would corrupt
+#' any fitted length scale. So this projects to the local UTM zone, chosen from
+#' the data's own centre.
+add_projected_coords <- function(x) {
+  library(sf)
+  pts <- if (inherits(x, "SpatVector")) sf::st_as_sf(x) else sf::st_as_sf(x)
+  ll  <- sf::st_transform(pts, 4326)
+  ctr <- suppressWarnings(sf::st_coordinates(sf::st_centroid(sf::st_union(ll))))
+
+  zone <- floor((ctr[1, 1] + 180) / 6) + 1
+  epsg <- if (ctr[1, 2] >= 0) 32600 + zone else 32700 + zone   # WGS84 / UTM
+
+  xy <- sf::st_coordinates(sf::st_transform(pts, epsg))
+  out <- sf::st_drop_geometry(pts)
+  out$x <- xy[, 1]
+  out$y <- xy[, 2]
+  attr(out, "crs_epsg") <- epsg
+  message("  projected coordinates added (EPSG:", epsg, ", UTM zone ", zone, ")")
+  out
 }
 
 # --- the candidate set ------------------------------------------------------

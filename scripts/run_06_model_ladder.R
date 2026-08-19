@@ -30,7 +30,9 @@ dir.create("outputs", showWarnings = FALSE)
 # --- data -------------------------------------------------------------------
 # `observed` here is the DEPTH-HARMONIZED stock (step 3 attaches it from step
 # 2), not the workbook per-core total.
-md <- as.data.frame(terra::vect("outputs/modelling_dataset.gpkg"))
+# Read WITH geometry: the spatial tiers need coordinates, and
+# as.data.frame() on a SpatVector drops them.
+md <- add_projected_coords(terra::vect("outputs/modelling_dataset.gpkg"))
 
 usable <- md[is.finite(md$observed), , drop = FALSE]
 message("\nCores with a harmonized value: ", nrow(usable), " of ", nrow(md))
