@@ -13,17 +13,31 @@ source("R/step06_tier_ladder.R")
 source("R/step06_fit_bayes.R")
 source("R/step06_evaluate.R")
 
+# --- your dials -------------------------------------------------------------
+# Set any of these in the console BEFORE sourcing this script and your value is
+# kept -- e.g.
+#
+#   FIT_BAYES <- TRUE
+#   source("scripts/run_06_model_ladder.R")
+#
+# That way you never have to edit this file, so `git pull` can never collide
+# with your settings. Editing the defaults below still works if you prefer.
+
 # Tiers 2-4 need Stan and are only worth fitting once the sample size supports
-# them. Flip this on deliberately; tier_recommendation() below tells you
+# them. Turn this on deliberately; tier_recommendation() below tells you
 # whether that is justified yet.
-FIT_BAYES  <- FALSE
-COVARIATES <- c("ndvi", "elevation", "slope")
+if (!exists("FIT_BAYES"))  FIT_BAYES  <- FALSE
+if (!exists("COVARIATES")) COVARIATES <- c("ndvi", "elevation", "slope")
 
 # Your precision target -- both numbers are yours to set (see the workshop's
 # "good enough to manage by" section). The resolution of any map you build is
 # set separately, in build_prediction_grid(cellsize = ...).
-TARGET_MARGIN     <- 0.20   # +/- 20% of the estimate
-TARGET_CONFIDENCE <- 0.80   # at 80% confidence
+if (!exists("TARGET_MARGIN"))     TARGET_MARGIN     <- 0.20   # +/- 20% of the estimate
+if (!exists("TARGET_CONFIDENCE")) TARGET_CONFIDENCE <- 0.80   # at 80% confidence
+
+message("Settings: FIT_BAYES = ", FIT_BAYES,
+        " | target +/-", round(100 * TARGET_MARGIN), "% at ",
+        round(100 * TARGET_CONFIDENCE), "% confidence")
 
 dir.create("outputs", showWarnings = FALSE)
 
