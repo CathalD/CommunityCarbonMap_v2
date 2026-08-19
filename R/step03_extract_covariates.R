@@ -14,6 +14,13 @@ extract_prior_covariates <- function(field, prior_mean, prior_sd, covariate_stac
   field$prior    <- terra::extract(prior_mean, field)[, 2]
   field$prior_sd <- terra::extract(prior_sd, field)[, 2]
 
+  # An uncertainty without an estimate describes nothing. Older exports of the
+  # prior rasters could disagree about where they have data (the SD layer was
+  # gap-filled everywhere, the mean only where a product exists), which gave
+  # FS-04 prior = NaN with prior_sd = 18.74 -- and then any average of prior_sd
+  # ran over more plots than the average of prior. Keep the two coherent.
+  field$prior_sd[!is.finite(field$prior)] <- NA_real_
+
   cov_vals <- terra::extract(covariate_stack, field)[, -1, drop = FALSE]
   cbind(field, cov_vals)
 }

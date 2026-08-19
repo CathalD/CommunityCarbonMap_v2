@@ -226,7 +226,12 @@ build_aoi_stack <- function(aoi_ee,
       # peat SD is absent it falls back to a constant -- the AOI spatial SD of
       # Sothe 0-30 cm from table 1. Stated, not derived: it does NOT represent
       # the disagreement between the two products, which is large.
-      ps <- ps$unmask(fill_prior_sd)$rename("prior_sd")
+      #
+      # The fill is masked to where the COMBINED MEAN exists. Unmasking the SD
+      # everywhere produced pixels with an uncertainty but no estimate (FS-04
+      # extracted prior = NaN, prior_sd = 18.74), which is incoherent: an SD
+      # without a mean describes nothing.
+      ps <- ps$unmask(fill_prior_sd)$updateMask(pm$mask())$rename("prior_sd")
     }
   }
 
