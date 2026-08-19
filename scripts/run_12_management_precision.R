@@ -1,4 +1,4 @@
-source("R/step15_management_precision.R")
+source("R/step12_management_precision.R")
 library(terra)
 
 posterior_mean <- rast("outputs/posterior/posterior_mean_10m.tif")

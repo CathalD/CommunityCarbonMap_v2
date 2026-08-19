@@ -1,4 +1,4 @@
-source("R/step09_bayesian_update.R")
+source("R/step07_bayesian_update.R")
 
 posterior <- bayesian_update_normal(
   prior_mean = 150, prior_sd = 30,

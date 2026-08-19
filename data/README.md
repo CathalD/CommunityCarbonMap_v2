@@ -40,7 +40,7 @@ authoritative shape reference if this table and the code ever disagree.
 
 Swapping in real data may mean more than dropping in files with the right
 names — e.g. a different native prior resolution changes the aggregation
-factor in `R/step12_check_change_of_support.R`, and a different response
+factor in `R/step10_check_change_of_support.R`, and a different response
 variable name changes the recipe formula in
 `R/step06_build_regional_workflow.R`. Once real files land here, the fastest
 path is: run `scripts/run_01_characterize_prior.R` onward one at a time,

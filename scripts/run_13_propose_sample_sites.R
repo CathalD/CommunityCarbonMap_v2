@@ -1,4 +1,4 @@
-source("R/step16_propose_sample_sites.R")
+source("R/step13_propose_sample_sites.R")
 library(terra)
 
 posterior_sd    <- rast("outputs/posterior/posterior_sd_10m.tif")

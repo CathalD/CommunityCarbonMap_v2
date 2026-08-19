@@ -81,10 +81,10 @@ list(
     as.data.frame(terra::vect(modelling_data_file))
   )),
 
-  # ---- step 14: the model tier ladder --------------------------------------
+  # ---- step 6: the model tier ladder ---------------------------------------
   # Replaces the old steps 6-8 (Random Forest). An RF on a handful of plots
   # memorises them; the ladder starts at a model the data can carry and only
-  # climbs when the data allows. See scripts/run_14_model_ladder.R.
+  # climbs when the data allows. See scripts/run_06_model_ladder.R.
   tar_target(modelling_table, {
     md <- as.data.frame(terra::vect(modelling_data_file))
     md[is.finite(md$observed), , drop = FALSE]
@@ -107,14 +107,14 @@ list(
 
   tar_target(prior_evidence_rho, prior_evidence_correlation(modelling_table))
 
-  # ---- raster fusion chain (steps 9-16): PAUSED ----------------------------
+  # ---- raster fusion chain (steps 7-13): PAUSED ----------------------------
   # These targets used to be fed by the RF bridge, which is gone. They need a
   # SPATIAL evidence surface -- a fitted Tier 2/3 "prior-as-prior" model turned
-  # into regional_mean / regional_sd rasters via R/step14_predict_grid.R.
+  # into regional_mean / regional_sd rasters via R/step06_predict_grid.R.
   #
   # At the current sample size no spatial tier is identifiable (see
   # tier_ceiling), so the chain is left unwired rather than fed a model that
-  # cannot support it. Nothing is lost: R/step09-16 and their run_XX scripts
+  # cannot support it. Nothing is lost: R/step07-13 and their run_XX scripts
   # are unchanged and still run standalone.
   #
   # To reconnect once a spatial tier is justified: predict the fitted model
@@ -123,5 +123,5 @@ list(
   #
   # NOTE: this is the prior-as-PRIOR route only. If the comparison instead
   # favours a prior-as-covariate model, its posterior IS the answer and steps
-  # 9-10 must be skipped -- running both uses the prior twice (finding A1).
+  # 7-8 must be skipped -- running both uses the prior twice (finding A1).
 )

@@ -3,7 +3,9 @@
 # carbon stock -> depth harmonisation -> the response variable step 3 models,
 # with every unit conversion visible as a live formula.
 #
-# Source data: data/community_soil_cores.csv (22 slices / 8 cores, Fort Severn).
+# Source data: data/example_soil_cores.csv -- the workshop EXAMPLE dataset
+# (48 slices / 16 fictional cores; see scripts/00_generate_example_data.R).
+# To build a workbook from a different raw file, change SRC below.
 # The instructions sheet is adapted from the WWF-Canada Blue Carbon Eelgrass
 # workshop sheet that previously lived at
 # "data/Carbon_DigitalData_BlankSheet - 1. Instructions.csv".
@@ -20,7 +22,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(HERE, "data", "community_soil_cores.csv")
+SRC = os.path.join(HERE, "data", "example_soil_cores.csv")
 OUT = os.path.join(HERE, "data", "soil_carbon_calculation.xlsx")
 
 FONT = "Arial"
@@ -58,13 +60,13 @@ def read_source():
                 "core": r["Core Id"].strip(),
                 "sample": r["Sample Id"].strip(),
                 "lat": float(r["Latitude"]),
-                # supplied positive; Fort Severn is ~87.7 W -- see sheet 2 col D/E
                 "lon_supplied": float(r["Longitude"]),
                 "thickness": float(r["Depth"]),
                 "bd": float(r["Bulk Density"]),
                 "om": float(r["OM"]),
                 "soc_pct": float(r["SOC"]),
-                "c_density_supplied": float(r["Organic Carbon Density (g/cm^2)"]),
+                "c_density_supplied": float(r.get("Organic Carbon Density (g/cm^3)")
+                                            or r["Organic Carbon Density (g/cm^2)"]),
             }
         )
     return out
@@ -175,8 +177,9 @@ def build_instructions(ws):
         ws.cell(r, 2, text).font = BODY
         ws.cell(r, 2).alignment = WRAP_TOP
         r += 1
-    line(r, "", "There is no worked-example row: sheet 3 is populated with the project's real "
-                "cores, so the data itself is the example.", NOTE)
+    line(r, "", "Sheet 3 comes pre-filled with the workshop's EXAMPLE dataset -- 16 fictional "
+                "cores whose numbers match the worked examples in the workshop text. Replace "
+                "them with your own field data when you are ready.", NOTE)
     ws.cell(r, 2).font = NOTE
     r += 2
 
@@ -202,7 +205,7 @@ def build_instructions(ws):
         r += 1
     line(r, "Cross-check (cols Y–Z)",
          "The carbon density recomputed here, minus the value supplied in "
-         "community_soil_cores.csv. Should be 0.000000 on every row.")
+         "the raw source file. Should be 0.000000 on every row.")
     r += 2
 
     section(r, "THE THREE EQUATIONS")
@@ -263,47 +266,35 @@ def build_instructions(ws):
         r += 1
     r += 1
 
-    section(r, "WHAT CAUGHT US OUT IN THIS DATASET")
+    section(r, "THINGS THAT OFTEN CATCH PEOPLE OUT")
     r += 1
     for label, text in [
-        ("Longitudes are missing their sign",
-         "community_soil_cores.csv gives longitude as +87.6 to +87.9. Fort Severn is ~87.7° "
-         "WEST, and data/aoi.geojson is all negative. Sheet 2 column D carries the corrected "
-         "(negative) value; column E keeps the number exactly as supplied. Confirm with "
-         "whoever collected the GPS before this propagates into a map."),
-        ("'Organic Carbon Density (g/cm^2)' is mislabelled",
-         "The supplied column equals bulk density × %C / 100, which is g C per cm³ — a "
-         "volumetric density, not an areal one. It has not been multiplied by slice "
-         "thickness. Sheet 3 recomputes it as column Q (g C/cm³) and only becomes an areal "
-         "density in column R, after multiplying by thickness. Columns Y–Z cross-check the "
-         "two and agree to 1e-9 on all 22 rows."),
-        ("'Depth' is slice thickness, not depth-to-bottom",
-         "PM-03-A reads 8.625, 8.75, 7.85, 5.5 — decreasing, so it cannot be a running "
-         "bottom depth. Sheet 3 stacks the slices from the surface (columns H–I) to get "
-         "the actual depth intervals."),
-        ("Nothing reaches 50 cm",
-         "The deepest core, PM-03-A, bottoms out at 30.7 cm. Targets 30–50 and 50–100 cm "
-         "have no core material, and sheet 4 says so rather than reporting 0."),
-        ("PM-01-A is a single 14.5 cm slice",
-         "Its '0–30 cm' stock covers less than half the interval. Sheet 4 flags it. Do not "
-         "put a partial-coverage core into the model as if it were a full 0–30 cm "
-         "observation."),
-        ("Bulk densities near 2.2 g/cm³",
-         "FS-03, FS-04 and FS-05 include dry bulk densities of 2.0–2.2 g/cm³. That is at or "
-         "past the plausible limit for unconsolidated soil (quartz particle density is "
-         "~2.65, so 2.18 implies ~18% porosity). Worth re-checking the volume basis with "
-         "the lab before these rows drive a regional model."),
-        ("%C is derived from LOI, not measured",
-         "%C / OM = 0.58 on every row — the van Bemmelen factor, not an independent "
-         "measurement. Sheet 3 uses measured %C where column O is filled and falls back to "
-         "OM × the factor in cell C2 otherwise. Change C2 if your lab uses a different "
-         "conversion."),
-        ("Depth basis vs. the prior",
-         "The primary prior (Li et al. 2025, 30 m) is FULL PEAT COLUMN carbon — a regional "
-         "mean of 86 ± 35 kg C/m² over ~184 cm of peat. These cores are 0–30 cm. The two "
-         "differ by more than an order of magnitude in this landscape and must not be "
-         "compared without an explicit shallow-fraction assumption. Same warning is already "
-         "written into data/CarbonResources_Assets+Covariates."),
+        ("Longitude signs",
+         "The western hemisphere is NEGATIVE longitude. GPS units and lab sheets "
+         "sometimes drop the sign; a positive longitude puts your cores on the other "
+         "side of the planet, and every map step downstream fails quietly. Column D on "
+         "sheet 2 is the corrected value; column E keeps the number exactly as supplied "
+         "so the correction is visible."),
+        ("'Depth' means slice THICKNESS here",
+         "Not depth-to-bottom. Sheet 3 stacks the slices from the surface to get each "
+         "slice's true depth interval (columns H-I). If your field sheet records bottom "
+         "depths instead, convert before entering."),
+        ("Volumetric vs areal carbon density",
+         "g C per cm3 (a property of the soil) is not g C per cm2 (a stock -- density x "
+         "thickness). Mixing them is a factor-of-thickness error. Sheet 3 computes the "
+         "volumetric density in column Q and only turns it into a stock in column R."),
+        ("Cores that stop short",
+         "A core that reaches 20 cm is not a 0-30 cm observation. Do not stretch or "
+         "guess -- enter it as measured. Sheet 4 flags partial coverage, and the R "
+         "workflow's depth harmonization accounts for it explicitly."),
+        ("%C from loss-on-ignition",
+         "If your lab reports organic matter (LOI) rather than measured carbon, %C is "
+         "estimated as OM x a conversion factor (cell C2 on sheet 3, default 0.58). "
+         "That is an assumption, not a measurement -- record which one your numbers are."),
+        ("Implausible bulk densities",
+         "Dry bulk density above ~1.9 g/cm3 in soil, or above ~0.3 in peat, deserves a "
+         "call to the lab before it drives an analysis: volume sits in the denominator, "
+         "so one wrong volume biases every stock from that core."),
     ]:
         line(r, label, text)
         r += 1
@@ -371,14 +362,13 @@ def build_core_log(ws, cores, n_data):
         style(ws.cell(r, 12, None), BLUE_TXT, YELLOW)
 
     ws.cell(hrow, 4).comment = Comment(
-        "Sign corrected: community_soil_cores.csv supplies longitude as positive, but the "
-        "Fort Severn AOI (data/aoi.geojson) is ~87.7 degrees WEST. Column E keeps the number "
-        "exactly as supplied. Confirm with the field crew.",
+        "Corrected longitude: western hemisphere is negative. Column E keeps the number "
+        "exactly as supplied by the raw file, so any sign correction stays visible.",
         "Workshop",
     )
     ws.cell(hrow, 11).comment = Comment(
-        "Not supplied in community_soil_cores.csv. Fill in from field notes -- step 6's "
-        "regional model can use it as a stratifying covariate.",
+        "Fill in from field notes -- the regional model can use it as a stratifying "
+        "covariate later.",
         "Workshop",
     )
     ws.freeze_panes = f"C{hrow + 1}"
@@ -502,7 +492,7 @@ def build_sample_data(ws, rows, n_cores):
                 BLACK_TXT, GREY, "0.000",
             )
 
-        # cross-check against the (mislabelled) column in community_soil_cores.csv
+        # cross-check against the carbon-density column of the raw source file
         style(ws.cell(r, 25, d["c_density_supplied"]), BLUE_TXT, YELLOW, "0.000000")
         style(ws.cell(r, 26, f"=Q{r}-Y{r}"), BLACK_TXT, GREY, "0.000000000")
 
@@ -517,7 +507,7 @@ def build_sample_data(ws, rows, n_cores):
     style(ws.cell(tot, 26, f"=SUMPRODUCT(MAX(ABS(Z{FIRST}:Z{last})))"), HDR, BAND, "0.000000000")
     ws.cell(tot, 26).comment = Comment(
         "Largest absolute disagreement between the carbon density recomputed on this sheet "
-        "and the value supplied in community_soil_cores.csv, over all rows. Should be 0.",
+        "and the value supplied in the raw source file, over all rows. Should be 0.",
         "Workshop",
     )
     ws.cell(tot + 1, 3,
@@ -525,21 +515,20 @@ def build_sample_data(ws, rows, n_cores):
             "per-core value — see sheet 4 for per-core numbers.").font = NOTE
 
     ws.cell(HDR_ROW, 6).comment = Comment(
-        "The 'Depth' column of community_soil_cores.csv is the THICKNESS of each slice, not "
-        "its bottom depth (PM-03-A reads 8.625, 8.75, 7.85, 5.5 -- decreasing, so it cannot "
-        "be a running bottom depth). Columns H-I stack them from the surface.",
+        "The 'Depth' column of the raw file is the THICKNESS of each slice, not its "
+        "bottom depth. Columns H-I stack the slices from the surface.",
         "Workshop",
     )
     ws.cell(HDR_ROW, 7).comment = Comment(
-        "Not recorded in community_soil_cores.csv; entered as 0 (no coarse fragments), which "
+        "Entered as 0 (no coarse fragments), which "
         "is what the supplied carbon-density column also assumes. Change it here if the "
         "field notes say otherwise -- it feeds the stock of every row.",
         "Workshop",
     )
     ws.cell(HDR_ROW, 25).comment = Comment(
-        "'Organic Carbon Density (g/cm^2)' in community_soil_cores.csv. The header unit is "
-        "wrong: the value is bulk density x %C / 100, i.e. g C per cm3, and has NOT been "
-        "multiplied by slice thickness. Column R is the true areal density.",
+        "The volumetric carbon density supplied in the raw file: bulk density x %C / 100, "
+        "in g C per cm3. It has NOT been multiplied by slice thickness -- column R is the "
+        "areal stock.",
         "Workshop",
     )
     ws.freeze_panes = f"D{FIRST}"

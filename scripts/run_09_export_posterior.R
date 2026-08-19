@@ -1,4 +1,4 @@
-source("R/step11_export_posterior.R")
+source("R/step09_export_posterior.R")
 library(terra)
 
 posterior <- rast("outputs/posterior_10m.tif")

@@ -1,4 +1,4 @@
-source("R/step12_check_change_of_support.R")
+source("R/step10_check_change_of_support.R")
 library(terra)
 
 posterior_mean <- rast("outputs/posterior/posterior_mean_10m.tif")

@@ -37,12 +37,12 @@ Ground rules agreed for the rebuild:
 | 3 | Extending a short core downward (extrapolation) | `R/step02` |
 | 4 | What a prior map gives you: an estimate *and* a doubt | `R/step01`, step-0 tables |
 | 5 | Cores alone: the frequentist estimate | (inside Tier 0) |
-| 6 | The Bayesian update: combining two imperfect estimates | `R/step09`, `tier0_area_update()` |
+| 6 | The Bayesian update: combining two imperfect estimates | `R/step07`, `tier0_area_update()` |
 | 7 | Does the map agree with your cores? (residuals, calibration) | `R/step04`, `tier1_calibration()` |
-| 8 | From one number to strata to a map: the tier ladder | `R/step14_*` |
-| 9 | The update at every pixel | `R/step10` |
-| 10 | Is the map good enough to manage by? (CV, precision targets) | `R/step15` |
-| 11 | Where to sample next year | `R/step16` |
+| 8 | From one number to a map: the tier ladder | `R/step06_*` |
+| 9 | The update at every pixel | `R/step08` |
+| 10 | Is the map good enough to manage by? (CV, precision targets) | `R/step12` |
+| 11 | Where to sample next year | `R/step13` |
 
 ---
 
@@ -263,16 +263,16 @@ workflow is book-keeping around these lines.
 
 ## Where the workflow does this
 
-- **`R/step09_bayesian_update.R` → `bayesian_update_normal()`** — exactly the
+- **`R/step07_bayesian_update.R` → `bayesian_update_normal()`** — exactly the
   seven lines above, plus one safeguard: where the prior map has no value
   (open water, a different ecosystem), its precision is set to 0 so it simply
   goes silent there rather than poisoning the result.
-- **`R/step14_tier_ladder.R` → `tier0_area_update()`** — the "Tier 0" analysis:
+- **`R/step06_tier_ladder.R` → `tier0_area_update()`** — the "Tier 0" analysis:
   computes your cores' mean and standard error (the frequentist part), then
   calls `bayesian_update_normal()` (the Bayesian part), and reports the
   posterior alongside the weight the prior actually earned. Run via
-  **`scripts/run_14_model_ladder.R`** → `outputs/tier0_area_update.rds`.
-- **`R/step10_bayesian_update_raster.R`** — the same equations applied at
+  **`scripts/run_06_model_ladder.R`** → `outputs/tier0_area_update.rds`.
+- **`R/step08_bayesian_update_raster.R`** — the same equations applied at
   every pixel of a map instead of once for the area (section 9).
 
 ---

@@ -1,3 +1,10 @@
+> **Step renumbering (2026-08):** the scripts were renumbered so file order
+> matches run order after the Random Forest (old steps 6–8b) was replaced by
+> the model tier ladder. This review keeps the OLD numbers in its findings.
+> Mapping: ladder = new 06 (was 14) · scalar update 09→07 · raster update
+> 10→08 · export 11→09 · change-of-support 12→10 · compare maps 13→11 ·
+> precision 15→12 · sample sites 16→13.
+
 # Code vs. Methods — alignment and defensibility review
 
 Merges three things into one list, ordered so it can be worked through in the

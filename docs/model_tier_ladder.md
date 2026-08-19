@@ -159,7 +159,7 @@ pooled with the community cores, or the prior ends up inside the likelihood.
 ## Running it
 
 ```r
-source("scripts/run_14_model_ladder.R")
+source("scripts/run_06_model_ladder.R")
 ```
 
 Runs the decision aid, Tier 0, Tier 1 and the ρ diagnostic. Tiers 2–4 are

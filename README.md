@@ -19,7 +19,7 @@ examples (by hand, then in R) live in the workshop:
   *(being rebuilt around the model tier ladder — the current copy still shows
   the old Random Forest steps)*
 - **Model tier ladder** — which analysis your sample size supports:
-  `docs/step14_model_ladder.md`
+  `docs/model_tier_ladder.md`
 - **Methods review / to-do** — `docs/code_vs_methods_review.md`
 
 ---
@@ -63,6 +63,11 @@ Everything lives in `data/`. **You supply two things:**
 Units are **kg C/m²** throughout — the workbook computes them for you from
 bulk density, %C, and slice thickness.
 
+**No data yet?** `source("scripts/00_setup_example.R")` installs a complete
+fictional example — 16 cores and an AOI in the Hudson Bay Lowlands, the same
+numbers every worked example in the workshop uses — so the whole pipeline runs
+before you have any field data. (It backs up an existing `aoi.geojson` first.)
+
 Everything else in `data/` (prior maps, NDVI, elevation) is downloaded by
 step 0, and the two registry files (`prior_assets.csv`,
 `covariate_assets.csv`) tell it what to fetch — add a row there to bring in
@@ -81,7 +86,7 @@ source("scripts/run_02_harmonize_depths.R")  # cores -> standard depth intervals
 source("scripts/run_03_extract_covariates.R")# prior + covariates at each core
 source("scripts/run_04_compare_prior_observed.R") # residuals: map vs cores
 source("scripts/run_05_spatial_residuals.R") # is the disagreement spatially patterned?
-source("scripts/run_14_model_ladder.R")      # the analysis: pick a tier, fit, compare
+source("scripts/run_06_model_ladder.R")      # the analysis: pick a tier, fit, compare
 ```
 
 Or, once the individual scripts have run cleanly, run the whole thing as a

@@ -7,10 +7,10 @@
 # What runs by default: the decision aid, Tier 0, Tier 1, and the
 # prior-evidence correlation. That is deliberate -- see FIT_BAYES below.
 
-source("R/step09_bayesian_update.R")   # Tier 0 reuses bayesian_update_normal()
-source("R/step14_tier_ladder.R")
-source("R/step14_fit_bayes.R")
-source("R/step14_evaluate.R")
+source("R/step07_bayesian_update.R")   # Tier 0 reuses bayesian_update_normal()
+source("R/step06_tier_ladder.R")
+source("R/step06_fit_bayes.R")
+source("R/step06_evaluate.R")
 
 # Tiers 2-4 need Stan and are only worth fitting once the sample size supports
 # them. Flip this on deliberately; tier_recommendation() below tells you

@@ -1,5 +1,5 @@
 # Check the recalculated workbook against an independent hand calculation done
-# straight from data/community_soil_cores.csv -- the workshop's rule is that if
+# straight from the raw source csv -- the workshop's rule is that if
 # the code and the hand calculation disagree, the hand calculation wins.
 #
 # Run AFTER recalc.py, otherwise every formula cell reads back as None.
@@ -11,7 +11,7 @@ import sys
 from openpyxl import load_workbook
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(HERE, "data", "community_soil_cores.csv")
+SRC = os.path.join(HERE, "data", "example_soil_cores.csv")
 WB = os.path.join(HERE, "data", "soil_carbon_calculation.xlsx")
 TARGETS = [(0, 15), (15, 30), (30, 50), (50, 100)]
 TOL = 1e-9
@@ -53,7 +53,7 @@ def main():
         check(f"S3!T{row} Mg C/ha", sd[f"T{row}"].value, q * th * 100)
         check(f"S3!Z{row} cross-check",
               sd[f"Z{row}"].value,
-              q - float(r["Organic Carbon Density (g/cm^2)"]))
+              q - float(r.get("Organic Carbon Density (g/cm^3)") or r["Organic Carbon Density (g/cm^2)"]))
         check(f"S3!E{row} longitude sign",
               sd[f"E{row}"].value, -abs(float(r["Longitude"])))
         for k, (t0, t1) in enumerate(TARGETS):

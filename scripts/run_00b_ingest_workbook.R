@@ -25,10 +25,31 @@ message("  ", write_soil_cores_raw(sheets, "data/soil_cores_raw.csv"))
 message("  ", write_field_plots_from_workbook(sheets, "data/field_plots.gpkg"))
 
 # The workbook is filled in by hand and exported through a spreadsheet app, so
-# check it against the raw source before anything downstream trusts it.
-message("\nValidating against data/community_soil_cores.csv")
-check <- validate_workbook_ingest(sheets)
+# check it against the raw source before anything downstream trusts it. Which
+# raw file? Pick the one whose core IDs match what the workbook holds -- the
+# tracked workbook ships with the EXAMPLE dataset (EX-xx cores), while a real
+# project's workbook matches its own raw export.
+candidates <- c("data/example_soil_cores.csv", "data/community_soil_cores.csv")
+candidates <- candidates[file.exists(candidates)]
+wb_ids <- unique(sheets[["6"]]$plot_id)
+raw_csv <- NULL
+for (cand in candidates) {
+  ids <- unique(read.csv(cand, check.names = FALSE)$`Core Id`)
+  if (any(wb_ids %in% ids)) { raw_csv <- cand; break }
+}
+if (is.null(raw_csv)) {
+  message("\nNo raw csv matches the workbook's core IDs (",
+          paste(head(wb_ids, 3), collapse = ", "),
+          " ...) -- skipping the cross-check. That is fine if the raw values ",
+          "only exist inside the workbook itself.")
+  check <- NULL
+} else {
+  message("\nValidating against ", raw_csv)
+  check <- validate_workbook_ingest(sheets, raw_csv = raw_csv)
+}
 
 dir.create("outputs", showWarnings = FALSE)
-write.csv(check, "outputs/workbook_ingest_check.csv", row.names = FALSE)
-print(check)
+if (!is.null(check)) {
+  write.csv(check, "outputs/workbook_ingest_check.csv", row.names = FALSE)
+  print(check)
+}

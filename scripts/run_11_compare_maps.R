@@ -1,4 +1,4 @@
-source("R/step13_compare_maps.R")
+source("R/step11_compare_maps.R")
 library(terra)
 
 prior_mean   <- rast("data/prior_mean_10m.tif")
